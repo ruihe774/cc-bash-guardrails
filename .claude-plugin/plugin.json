@@ -1,0 +1,6 @@
+{
+  "name": "guard-rules",
+  "version": "0.1.0",
+  "description": "Tool-call guard rules (parser-based): blocks malformed bash, Monitor, find rooted at /, and pgrep -f without -a",
+  "author": { "name": "msk" }
+}
