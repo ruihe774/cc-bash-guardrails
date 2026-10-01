@@ -5,6 +5,7 @@ const deny = (command: string) => firstDenial('Bash', { command })
 
 test('Monitor is denied', () => {
   expect(firstDenial('Monitor', {})).toContain('Monitor is disabled')
+  expect(firstDenial('Monitor', {})).toContain('persistent-monitor')
 })
 
 test('find rooted at / is denied, scoped find is not', () => {

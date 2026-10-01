@@ -66,7 +66,7 @@ export const rules: Rule[] = [
     id: 'monitor-disabled',
     tool: 'Monitor',
     check: () =>
-      'Monitor is disabled. Use Bash with a long timeout (up to 24h) to spawn a blocking waiter that exits on the next event.',
+      'Monitor is disabled. Use the persistent-monitor MCP instead: load its tools with ToolSearch (query "persistent-monitor"), then call mcp__persistent-monitor__monitor (or waitfile / waitpid). If it is unavailable, fall back to Bash with a long timeout (up to 24h) to spawn a blocking waiter that exits on the next event.',
   },
   {
     id: 'find-root',
