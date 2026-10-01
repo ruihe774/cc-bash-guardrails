@@ -6,6 +6,7 @@ import { parse } from './vendor/unbash/parser.js'
 export interface SimpleCommand {
   name: string // basename of the program, wrappers (sudo, env, ...) removed
   args: string[] // its arguments, quotes removed
+  captured: boolean // its stdout is consumed: left of a pipe, or inside $(...), `...` or <(...)
 }
 
 // Wrappers that run another command given as their first non-option argument.
@@ -77,15 +78,23 @@ function children(node: any): any[] {
   return out
 }
 
-function walk(node: any, visit: (n: any) => void, seen = new Set<any>()): void {
+function walk(node: any, visit: (n: any, captured: boolean) => void, captured = false, seen = new Set<any>()): void {
   if (!node || typeof node !== 'object' || seen.has(node)) return
   seen.add(node)
   if (Array.isArray(node)) {
-    for (const n of node) walk(n, visit, seen)
+    for (const n of node) walk(n, visit, captured, seen)
     return
   }
-  if (typeof node.type === 'string') visit(node)
-  for (const v of children(node)) walk(v, visit, seen)
+  if (typeof node.type === 'string') visit(node, captured)
+  if (node.type === 'Pipeline') {
+    // Every stage but the last feeds the next one, so its stdout is captured
+    const last = node.commands.length - 1
+    node.commands.forEach((c: any, i: number) => walk(c, visit, captured || i < last, seen))
+    return
+  }
+  // $(...), `...` and <(...) hand the output to the surrounding command
+  const inner = captured || node.type === 'CommandExpansion' || (node.type === 'ProcessSubstitution' && node.operator === '<')
+  for (const v of children(node)) walk(v, visit, inner, seen)
 }
 
 export interface Analysis {
@@ -109,27 +118,27 @@ export function analyze(source: string, depth = 0): Analysis {
     out.errors.push(String((err as Error)?.message ?? err))
     return out
   }
-  const nested = (script: string) => {
+  const nested = (script: string, captured: boolean) => {
     const sub = analyze(script, depth + 1)
-    out.commands.push(...sub.commands)
+    out.commands.push(...sub.commands.map((c) => ({ ...c, captured: c.captured || captured })))
     out.errors.push(...sub.errors)
   }
   try {
-    walk(ast, (n) => {
+    walk(ast, (n, captured) => {
       for (const e of n.errors ?? []) out.errors.push(`${e.message} at ${e.pos}`)
       if (n.type !== 'Command' || !n.name) return
       const words = unwrap([n.name.value, ...n.args.map(argText)])
       if (!words.length) return
       const name = basename(words[0])
       const args = words.slice(1)
-      out.commands.push({ name, args })
+      out.commands.push({ name, args, captured })
 
       // Re-parse script strings handed to another shell
       if (SHELLS.has(name)) {
         const c = args.findIndex((a) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a))
-        if (c >= 0 && args[c + 1] !== undefined) nested(args[c + 1])
+        if (c >= 0 && args[c + 1] !== undefined) nested(args[c + 1], captured)
       } else if (name === 'eval') {
-        nested(args.join(' '))
+        nested(args.join(' '), captured)
       }
     })
   } catch (err) {

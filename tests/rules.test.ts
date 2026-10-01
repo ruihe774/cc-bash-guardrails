@@ -19,6 +19,35 @@ test('pgrep -f denied unless -a present', () => {
   for (const c of ['pgrep -af foo', 'pgrep foo', 'pgrep -x foo']) expect(deny(c)).toBe(null)
 })
 
+test('pgrep output must not be captured', () => {
+  for (const c of [
+    'pgrep foo | wc -l',
+    'pgrep -a foo |& head',
+    'echo $(pgrep foo)',
+    'echo `pgrep foo`',
+    'n=$(pgrep foo)',
+    'echo "$(pgrep foo)"',
+    'cat <(pgrep foo)',
+    '{ pgrep foo; } | wc -l',
+    'sh -c "pgrep foo" | wc -l',
+    'echo $(pgrep foo | wc -l)',
+    'kill $(sudo pgrep foo)',
+  ])
+    expect(deny(c)).toContain('capture pgrep')
+  for (const c of [
+    'pgrep foo',
+    'pgrep foo; echo done',
+    'pgrep foo && echo yes',
+    'ls | xargs pgrep foo',
+    'echo hi | pgrep foo',
+    'pgrep foo > out.txt',
+    'echo "pgrep foo | wc"',
+    'echo $(date); pgrep foo',
+    'echo foo > >(pgrep bar)',
+  ])
+    expect(deny(c)).toBe(null)
+})
+
 test('rules follow shell structure, not text', () => {
   for (const c of [
     'cd /x && find / -name y',

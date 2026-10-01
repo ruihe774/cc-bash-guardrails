@@ -88,6 +88,14 @@ export const rules: Rule[] = [
         ? 'pgrep -f can match helper processes spawned by the harness (e.g. its bash -c wrapper). Use pgrep -af and confirm each match cmdline instead.'
         : null,
   },
+  {
+    id: 'pgrep-captured',
+    tool: 'Bash',
+    check: ({ command = '' }) =>
+      simpleCommands(command).some((c) => c.name === 'pgrep' && c.captured)
+        ? 'Do not capture pgrep output in a pipe or substitution ($(...), `...`, <(...)). Let pgrep print straight to stdout and read the result.'
+        : null,
+  },
 ]
 
 export function firstDenial(tool: string, e: { command?: string }): string | null {
