@@ -126,6 +126,14 @@ export const rules: Rule[] = [
         ? 'Do not capture pgrep output in a pipe or substitution ($(...), `...`, <(...)). Let pgrep print straight to stdout and read the result.'
         : null,
   },
+  {
+    id: 'sudo',
+    tool: 'Bash',
+    check: ({ command = '' }) =>
+      simpleCommands(command).some((c) => c.name === 'sudo' || c.wrappers.includes('sudo'))
+        ? 'sudo is disabled: passwordless sudo is insecure, and a password prompt needs a TTY, which Bash processes spawned by Claude Code do not have. Use run0 instead, which shows the user a graphical auth prompt every time and does not cache authentication.'
+        : null,
+  },
 ]
 
 export function firstDenial(tool: string, e: { command?: string }): string | null {

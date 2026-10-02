@@ -100,6 +100,29 @@ test('rules follow shell structure, not text', () => {
     expect(deny(c)).toBe(null)
 })
 
+test('sudo is denied in favour of run0', () => {
+  for (const c of [
+    'sudo ls',
+    'sudo -v',
+    'sudo -u root ls',
+    '/usr/bin/sudo ls',
+    'ls && sudo ls',
+    'echo $(sudo cat /etc/shadow)',
+    'env X=1 sudo ls',
+    'bash -c "sudo ls"',
+    'ls | xargs sudo rm',
+  ])
+    expect(deny(c)).toContain('run0')
+  for (const c of ['run0 ls', 'run0 -u root ls', 'echo sudo', 'grep sudo /etc/group', 'ls sudo'])
+    expect(deny(c)).toBe(null)
+})
+
+test('run0 is a wrapper: the command it runs is checked', () => {
+  for (const c of ['run0 find /tmp -name x', 'run0 -u root find / -xdev', 'run0 -D /tmp --nice=5 pgrep -f foo'])
+    expect(deny(c)).not.toBe(null)
+  expect(deny('run0 -u root find /tmp -xdev -name x')).toBe(null)
+})
+
 test('malformed bash is denied, well-formed multi-line scripts are not', () => {
   for (const c of ['echo "abc', 'echo $(ls', 'if true; then ls', 'ls | ', 'bash -c "echo \'x"', 'echo ok; find /tmp -xdev "'])
     expect(deny(c)).toContain('Malformed bash')
