@@ -26,6 +26,28 @@ function findStartPoints(args: string[]): string[] {
   return paths
 }
 
+// Primaries that consume the next token as a value, which may itself look like an option
+const FIND_VALUE_PRIMARIES = new Set([
+  '-name', '-iname', '-path', '-ipath', '-wholename', '-iwholename', '-regex', '-iregex', '-lname', '-ilname',
+  '-type', '-xtype', '-user', '-group', '-perm', '-size', '-newer', '-anewer', '-cnewer', '-samefile',
+  '-mtime', '-atime', '-ctime', '-mmin', '-amin', '-cmin', '-links', '-inum', '-uid', '-gid', '-used',
+  '-fstype', '-printf', '-fprintf', '-fprint', '-fprint0', '-fls', '-context', '-maxdepth', '-mindepth',
+  '-newerXY',
+])
+
+// -mount is the traditional spelling of -xdev
+function findStaysOnFilesystem(args: string[]): boolean {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]
+    if (a === '-xdev' || a === '-mount') return true
+    if (/^-(exec|execdir|ok|okdir)$/.test(a)) {
+      // The embedded command runs up to a lone ; or +
+      while (i + 1 < args.length && args[i] !== ';' && args[i] !== '+') i++
+    } else if (FIND_VALUE_PRIMARIES.has(a) || /^-newer[aBcmt][aBcmt]$/.test(a)) i++
+  }
+  return false
+}
+
 // `/*` expands to every top-level entry, which scans the whole filesystem too
 const isFilesystemRoot = (p: string) => /^\/+(\.\/?)*\*?$/.test(p)
 
@@ -74,6 +96,14 @@ export const rules: Rule[] = [
     check: ({ command = '' }) =>
       simpleCommands(command).some((c) => c.name === 'find' && findStartPoints(c.args).some(isFilesystemRoot))
         ? 'find rooted at / is disabled. Scan a specific directory instead.'
+        : null,
+  },
+  {
+    id: 'find-xdev',
+    tool: 'Bash',
+    check: ({ command = '' }) =>
+      simpleCommands(command).some((c) => c.name === 'find' && !findStaysOnFilesystem(c.args))
+        ? 'find must specify -xdev so it does not cross filesystem boundaries. To search several filesystems, issue a separate find -xdev per filesystem.'
         : null,
   },
   {

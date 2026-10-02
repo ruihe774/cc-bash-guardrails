@@ -11,7 +11,31 @@ test('Monitor is denied', () => {
 test('find rooted at / is denied, scoped find is not', () => {
   for (const c of ['find / -name x', 'ls; find / -name x', 'sudo find -L / -type f', 'echo $(find /)'])
     expect(deny(c)).toContain('find rooted at /')
-  for (const c of ['find /tmp -name x', 'find . -name x', 'echo find /'])
+  for (const c of ['find /tmp -xdev -name x', 'find . -xdev -name x', 'echo find /'])
+    expect(deny(c)).toBe(null)
+})
+
+test('find without -xdev is denied', () => {
+  for (const c of [
+    'find /tmp -name x',
+    'find . -name x',
+    'find',
+    'ls; find /tmp -type f',
+    'echo $(find /tmp)',
+    'sudo find /tmp -name x',
+    'find . -name -xdev',
+    'find . -exec grep -xdev {} \\;',
+  ])
+    expect(deny(c)).toContain('-xdev')
+  for (const c of [
+    'find /tmp -xdev -name x',
+    'find -xdev /tmp',
+    'find /tmp -mount -type f',
+    'find /a /b -name x -xdev',
+    'find -L /tmp -xdev -type f',
+    'echo $(find /tmp -xdev)',
+    'find . -xdev -exec ls {} +',
+  ])
     expect(deny(c)).toBe(null)
 })
 
@@ -67,8 +91,8 @@ test('rules follow shell structure, not text', () => {
   for (const c of [
     'echo "find / -name x"',
     "grep 'pgrep -f' file",
-    'find ./a -path / -prune',
-    'find /tmp -name /',
+    'find ./a -xdev -path / -prune',
+    'find /tmp -xdev -name /',
     'pgrep --list-full --full foo',
     'echo pgrep -f',
     'pgrep -u f foo',
@@ -77,7 +101,7 @@ test('rules follow shell structure, not text', () => {
 })
 
 test('malformed bash is denied, well-formed multi-line scripts are not', () => {
-  for (const c of ['echo "abc', 'echo $(ls', 'if true; then ls', 'ls | ', 'bash -c "echo \'x"', 'echo ok; find /tmp "'])
+  for (const c of ['echo "abc', 'echo $(ls', 'if true; then ls', 'ls | ', 'bash -c "echo \'x"', 'echo ok; find /tmp -xdev "'])
     expect(deny(c)).toContain('Malformed bash')
   for (const c of ['cat <<EOF\nhi\nEOF\n', 'for i in 1 2; do echo $i; done', '[[ -f x ]] && echo $((1+2))', ''])
     expect(deny(c)).toBe(null)
@@ -95,5 +119,5 @@ test('substitutions in every syntax position are seen', () => {
 
 test('find -- and /* count as rooted at /', () => {
   for (const c of ['find -- / -name x', 'find /* -name x', 'find -L -- // x']) expect(deny(c)).toContain('find rooted at /')
-  for (const c of ['find -- /tmp -name x', 'find /tmp/* -name x']) expect(deny(c)).toBe(null)
+  for (const c of ['find -- /tmp -xdev -name x', 'find /tmp/* -xdev -name x']) expect(deny(c)).toBe(null)
 })
