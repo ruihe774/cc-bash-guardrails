@@ -136,6 +136,23 @@ export const rules: Rule[] = [
   },
 ]
 
+// Quote a word the way a shell would need it, so the displayed command is unambiguous
+const shellQuote = (w: string) => (/^[\w@%+=:,./-]+$/.test(w) ? w : `'${w.replace(/'/g, `'\\''`)}'`)
+
+/** Every run0 invocation in `command`, as the full command line it will run
+ *  (`run0 -u root systemctl restart x`), for showing to the user. */
+export function run0Invocations(command: string): string[] {
+  const out: string[] = []
+  for (const c of simpleCommands(command)) {
+    if (c.name === 'run0') out.push(['run0', ...c.args].map(shellQuote).join(' '))
+    // Wrappers nested in wrappers (`env X=1 run0 ls`): each run0 reports its own tail
+    c.wrappers.forEach((w, i) => {
+      if (w === 'run0') out.push(c.wrapped[i].map(shellQuote).join(' '))
+    })
+  }
+  return [...new Set(out)]
+}
+
 export function firstDenial(tool: string, e: { command?: string }): string | null {
   for (const r of rules) {
     if (r.tool !== tool) continue

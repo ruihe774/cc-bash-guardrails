@@ -7,6 +7,7 @@ export interface SimpleCommand {
   name: string // basename of the program, wrappers (sudo, env, ...) removed
   args: string[] // its arguments, quotes removed
   wrappers: string[] // wrappers removed from in front of it, outermost first
+  wrapped: string[][] // per wrapper, parallel to `wrappers`: that wrapper's whole invocation, options and wrapped command included
   captured: boolean // its stdout is consumed: left of a pipe, or inside $(...), `...` or <(...)
 }
 
@@ -40,13 +41,15 @@ const basename = (p: string): string => p.slice(p.lastIndexOf('/') + 1)
 
 const argText = (a: any): string => (a.type === 'Assignment' ? a.text : a.value)
 
-function unwrap(words: string[]): { words: string[]; wrappers: string[] } {
+function unwrap(words: string[]): { words: string[]; wrappers: string[]; wrapped: string[][] } {
   const wrappers: string[] = []
+  const wrapped: string[][] = []
   for (let guard = 0; words.length && guard < 16; guard++) {
     const prog = basename(words[0])
     const w = WRAPPERS[prog]
     if (!w) break
     wrappers.push(prog)
+    wrapped.push(words)
     let i = 1
     let skip = w.positionals ?? 0
     for (; i < words.length; i++) {
@@ -68,7 +71,7 @@ function unwrap(words: string[]): { words: string[]; wrappers: string[] } {
     }
     words = words.slice(i)
   }
-  return { words, wrappers }
+  return { words, wrappers, wrapped }
 }
 
 // Every child of a node: own properties plus the lazy getters the parser defines
@@ -131,16 +134,17 @@ export function analyze(source: string, depth = 0): Analysis {
     walk(ast, (n, captured) => {
       for (const e of n.errors ?? []) out.errors.push(`${e.message} at ${e.pos}`)
       if (n.type !== 'Command' || !n.name) return
-      let { words, wrappers } = unwrap([n.name.value, ...n.args.map(argText)])
+      let { words, wrappers, wrapped } = unwrap([n.name.value, ...n.args.map(argText)])
       // A wrapper with nothing to run (`sudo -v`) is itself the command
       if (!words.length) {
         const last = wrappers.pop()
-        if (!last) return
-        words = [last]
+        const call = wrapped.pop()
+        if (!last || !call) return
+        words = call
       }
       const name = basename(words[0])
       const args = words.slice(1)
-      out.commands.push({ name, args, wrappers, captured })
+      out.commands.push({ name, args, wrappers, wrapped, captured })
 
       // Re-parse script strings handed to another shell
       if (SHELLS.has(name)) {

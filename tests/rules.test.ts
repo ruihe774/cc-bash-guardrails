@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { firstDenial } from '../hooks/rules.ts'
+import { firstDenial, run0Invocations } from '../hooks/rules.ts'
 
 const deny = (command: string) => firstDenial('Bash', { command })
 
@@ -143,4 +143,37 @@ test('substitutions in every syntax position are seen', () => {
 test('find -- and /* count as rooted at /', () => {
   for (const c of ['find -- / -name x', 'find /* -name x', 'find -L -- // x']) expect(deny(c)).toContain('find rooted at /')
   for (const c of ['find -- /tmp -xdev -name x', 'find /tmp/* -xdev -name x']) expect(deny(c)).toBe(null)
+})
+
+test('run0Invocations reports the exact wrapped command', () => {
+  expect(run0Invocations('run0 ls')).toEqual(['run0 ls'])
+  expect(run0Invocations('run0 -u root systemctl restart "my unit"')).toEqual(["run0 -u root systemctl restart 'my unit'"])
+  expect(run0Invocations('echo hi; env X=1 run0 -D /tmp ls | wc -l')).toEqual(['run0 -D /tmp ls'])
+  expect(run0Invocations('bash -c "run0 id"')).toEqual(['run0 id'])
+  expect(run0Invocations('run0 -v')).toEqual(['run0 -v'])
+  expect(run0Invocations('ls; echo run0')).toEqual([])
+})
+
+test('run0 asks the user with the wrapped command before it runs', async ($, on) => {
+  let asked = ''
+  let answer = 'Allow'
+  on('tool.call', ($, e: any) => {
+    if (e.tool === 'AskUserQuestion') {
+      asked = e.questions[0].question
+      return { result: { answers: { [e.questions[0].question]: answer } } }
+    }
+    return { result: 'ran' }
+  })
+
+  const ok = await $.tool.call({ tool: 'Bash', command: 'run0 -u root systemctl restart foo' })
+  expect(asked).toContain('run0 -u root systemctl restart foo')
+  expect(ok.result).toBe('ran')
+
+  answer = 'Deny'
+  const no = await $.tool.call({ tool: 'Bash', command: 'run0 id' })
+  expect(JSON.stringify(no)).toContain('declined run0')
+
+  asked = ''
+  await $.tool.call({ tool: 'Bash', command: 'ls' })
+  expect(asked).toBe('')
 })
