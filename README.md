@@ -91,7 +91,7 @@ An error handler on the hook denies the call if the hook throws or times out bef
 - It makes **no model calls**, **no network requests**, and **no shell commands**. Commands are only parsed, never executed.
 - It does not read or write any files, and it uses no credentials, environment variables, or MCP servers.
 - It does not collect, store, or transmit any data. The only thing it shows is the optional `run0` confirmation dialog.
-- Its one dependency is the vendored unbash parser (ISC license, in `hooks/vendor/unbash/`), which has no install step.
+- Its one dependency is the vendored [unbash](https://github.com/webpro-nl/unbash) parser (ISC license, in `hooks/vendor/unbash/`), which has no install step.
 
 ## Development
 
@@ -101,3 +101,7 @@ The rule logic is pure and kept free of the mods API: `firstDenial` and `run0Inv
 claude plugin validate .
 claude plugin test
 ```
+
+## License
+
+The plugin's own code is released into the public domain under the [Unlicense](LICENSE). The vendored unbash parser in `hooks/vendor/unbash/` is **not** public domain: it is Copyright (c) Lars Kappert and licensed under the ISC License, so the combined work is `Unlicense AND ISC`. The ISC copyright and permission notice must be preserved in all copies; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `hooks/vendor/unbash/LICENSE`.

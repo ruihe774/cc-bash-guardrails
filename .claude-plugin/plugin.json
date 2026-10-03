@@ -19,7 +19,7 @@
     "sudo",
     "run0"
   ],
-  "license": "Unlicense",
+  "license": "Unlicense AND ISC",
   "name": "bash-guardrails",
   "repository": "https://github.com/ruihe774/cc-bash-guardrails",
   "userConfig": {
