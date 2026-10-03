@@ -76,6 +76,12 @@ function pgrepFlags(args: string[], prog: string): { full: boolean; listFull: bo
 const GREPS = new Set(['grep', 'egrep', 'fgrep', 'rg'])
 
 export const rules: Rule[] = [
+  {
+    id: 'monitor-disabled',
+    tool: 'Monitor',
+    check: () =>
+      'Monitor is disabled. Use Bash with run_in_background to spawn a blocking waiter that exits on the next event.',
+  },
   // Runs first: if the command can't be parsed, the rules below can't be trusted to see all of it
   {
     id: 'malformed-bash',
@@ -86,12 +92,6 @@ export const rules: Rule[] = [
         ? `Malformed bash command (${errors[0]}). Fix the syntax and retry.`
         : null
     },
-  },
-  {
-    id: 'monitor-disabled',
-    tool: 'Monitor',
-    check: () =>
-      'Monitor is disabled. Use Bash with run_in_background to spawn a blocking waiter that exits on the next event.',
   },
   {
     id: 'find-root',
@@ -171,9 +171,18 @@ export const ruleKey = (id: string) => id.replace(/-/g, '_')
 export const ruleEnabled = (options: Record<string, unknown> | undefined, id: string) =>
   options?.[ruleKey(id)] === true
 
-export function firstDenial(tool: string, e: { command?: string }, options?: Record<string, unknown>): string | null {
+// Monitor runs a shell command just like Bash, so the Bash rules apply to it too
+const appliesTo = (r: Rule, tool: string) => r.tool === tool || (tool === 'Monitor' && r.tool === 'Bash')
+
+export function firstDenial(tool: string, e: { command?: string; ws?: unknown }, options?: Record<string, unknown>): string | null {
   for (const r of rules) {
-    if (r.tool !== tool || !ruleEnabled(options, r.id)) continue
+    if (!appliesTo(r, tool) || !ruleEnabled(options, r.id)) continue
+    if (tool === 'Monitor' && r.tool === 'Bash' && typeof e.command !== 'string') {
+      // A ws source streams a WebSocket and runs no shell, so there is nothing for the shell rules to check
+      if (e.ws !== undefined) continue
+      // Fail closed: with neither field the shell rules would be checking an empty string
+      return 'Monitor call has no command string that the Bash guard rules can check; refusing it rather than running it unchecked.'
+    }
     const reason = r.check(e)
     if (reason) return reason
   }

@@ -5,9 +5,9 @@ export function register(on: any, options?: Record<string, unknown>) {
     const reason = firstDenial(e.tool, e, options)
     if (reason) return { deny: reason }
     // run0's graphical prompt does not show the wrapped command, so show it here first
-    const run0 = e.tool === 'Bash' && ruleEnabled(options, 'run0_confirm') ? run0Invocations(e.command ?? '') : []
+    const run0 = ruleEnabled(options, 'run0_confirm') ? run0Invocations(typeof e.command === 'string' ? e.command : '') : []
     if (run0.length) {
-      const question = `Allow Claude to run with elevated privileges via run0?\n\n${run0.map((c) => `  ${c}`).join('\n')}\n\nFull Bash command:\n${e.command}\n\nAllow?`
+      const question = `Allow Claude to run with elevated privileges via run0?\n\n${run0.map((c) => `  ${c}`).join('\n')}\n\nFull ${e.tool} command:\n${e.command}\n\nAllow?`
       let answer: string
       try {
         answer = await $.ui.ask(question, { options: ['Allow', 'Deny'], header: 'run0' })

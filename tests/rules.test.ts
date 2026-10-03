@@ -251,8 +251,30 @@ test('the error handler fails closed, unless the hook had already passed the cal
   expect((await onError({}, { tool: 'Bash', command: 'ls' }, passed)).result).toBe('ran')
 })
 
+test('Monitor commands go through the Bash rules even when Monitor itself is allowed', () => {
+  const on = { ...ALL, monitor_disabled: false }
+  for (const command of ['find / -xdev', 'sudo ls', 'pkill -f foo', 'until grep x log; do sleep 1; done', 'echo "unterminated'])
+    expect(firstDenial('Monitor', { command }, on)).not.toBeNull()
+  expect(firstDenial('Monitor', { command: 'tail -f --pid=1 log' }, on)).toBeNull()
+  // The command field is missing: refuse rather than check an empty string
+  expect(firstDenial('Monitor', {}, on)).toContain('no command string')
+  // A ws source runs no shell
+  expect(firstDenial('Monitor', { ws: { url: 'wss://example.com/stream' } }, on)).toBeNull()
+  expect(firstDenial('Monitor', { ws: { url: 'wss://example.com/stream' } }, ALL)).toContain('Monitor is disabled')
+  expect(firstDenial('Monitor', {}, { monitor_disabled: false })).toBeNull()
+})
+
+test('run0 is confirmed for Monitor too', async () => {
+  const { hook } = registerMod({ run0_confirm: true })
+  let asked = ''
+  const $ = { ui: { ask: async (q: string) => ((asked = q), 'Deny') } }
+  const out = await hook($, { tool: 'Monitor', command: 'run0 id' }, async () => ({ result: 'ran' }))
+  expect(asked).toContain('Full Monitor command')
+  expect(JSON.stringify(out)).toContain('declined run0')
+})
+
 test('a rule is skipped when its option is false', () => {
-  expect(firstDenial('Monitor', {}, { ...ALL, monitor_disabled: false })).toBeNull()
+  expect(firstDenial('Monitor', { command: 'ls' }, { ...ALL, monitor_disabled: false })).toBeNull()
   expect(firstDenial('Monitor', {}, { ...ALL, find_root: false })).toContain('Monitor is disabled')
   expect(firstDenial('Bash', { command: 'sudo ls' }, { sudo: false })).toBeNull()
   expect(firstDenial('Bash', { command: 'sudo ls' }, { sudo: true })).toContain('sudo is disabled')
