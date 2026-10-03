@@ -61,7 +61,23 @@ claude --plugin-dir /path/to/cc-bash-guardrails
 
 ## Configuration
 
-Each rule is a boolean `userConfig` option named as in the table above, for example `sudo` or `find_xdev`. Only `malformed_bash` and `find_root` default to `true`. Set the options in the plugin's configuration, or under `pluginConfigs` in your settings, keyed by the plugin's id (`bash-guardrails@anthropic-plugin-directory`).
+Each rule is a boolean `userConfig` option named as in the table above, for example `sudo` or `find_xdev`. Only `malformed_bash` and `find_root` default to `true`. Set the options in Claude Code's configuration (`/config`), or under `pluginConfigs` in your settings, keyed by the plugin's id (`bash-guardrails@anthropic-plugin-directory`). E.g., to enable more rules, in your `~/.claude/settings.json`:
+```json5
+// ...
+  "pluginConfigs": {
+    "bash-guardrails@anthropic-plugin-directory": {
+      "options": {
+        "find_xdev": true,
+        "pgrep_captured": true,
+        "pgrep_f": true,
+        "run0_confirm": true,
+        "sudo": true,
+        "until_grep": true
+      }
+    }
+  },
+// ...
+```
 
 ## What the hook does
 
