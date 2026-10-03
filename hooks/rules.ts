@@ -4,8 +4,6 @@ import { analyze, simpleCommands } from './shell.ts'
 export interface Rule {
   id: string
   tool: string
-  // Whether the rule is on when the user has not set its option; only universal rules default on
-  defaultOn: boolean
   // Returns the deny reason when the call should be blocked, otherwise null
   check: (e: { command?: string }) => string | null
 }
@@ -80,7 +78,6 @@ export const rules: Rule[] = [
   // Runs first: if the command can't be parsed, the rules below can't be trusted to see all of it
   {
     id: 'malformed-bash',
-    defaultOn: true,
     tool: 'Bash',
     check: ({ command = '' }) => {
       const { errors } = analyze(command)
@@ -91,14 +88,12 @@ export const rules: Rule[] = [
   },
   {
     id: 'monitor-disabled',
-    defaultOn: false,
     tool: 'Monitor',
     check: () =>
       'Monitor is disabled. Use Bash with run_in_background to spawn a blocking waiter that exits on the next event.',
   },
   {
     id: 'find-root',
-    defaultOn: true,
     tool: 'Bash',
     check: ({ command = '' }) =>
       simpleCommands(command).some((c) => c.name === 'find' && findStartPoints(c.args).some(isFilesystemRoot))
@@ -107,7 +102,6 @@ export const rules: Rule[] = [
   },
   {
     id: 'find-xdev',
-    defaultOn: false,
     tool: 'Bash',
     check: ({ command = '' }) =>
       simpleCommands(command).some((c) => c.name === 'find' && !findStaysOnFilesystem(c.args))
@@ -116,7 +110,6 @@ export const rules: Rule[] = [
   },
   {
     id: 'pgrep-f',
-    defaultOn: false,
     tool: 'Bash',
     check: ({ command = '' }) =>
       simpleCommands(command).some((c) => {
@@ -129,7 +122,6 @@ export const rules: Rule[] = [
   },
   {
     id: 'pgrep-captured',
-    defaultOn: false,
     tool: 'Bash',
     check: ({ command = '' }) =>
       simpleCommands(command).some((c) => c.name === 'pgrep' && c.captured)
@@ -138,7 +130,6 @@ export const rules: Rule[] = [
   },
   {
     id: 'until-grep',
-    defaultOn: false,
     tool: 'Bash',
     check: ({ command = '' }) =>
       analyze(command).untilClauses.some((cmds) => cmds.some((c) => GREPS.has(c.name)))
@@ -147,7 +138,6 @@ export const rules: Rule[] = [
   },
   {
     id: 'sudo',
-    defaultOn: false,
     tool: 'Bash',
     check: ({ command = '' }) =>
       simpleCommands(command).some((c) => c.name === 'sudo' || c.wrappers.includes('sudo'))
@@ -176,15 +166,9 @@ export function run0Invocations(command: string): string[] {
 // The userConfig key that toggles a rule: its id with underscores
 export const ruleKey = (id: string) => id.replace(/-/g, '_')
 
-// run0_confirm is not a rule (it prompts rather than denies), so its default lives here
-const EXTRA_DEFAULTS: Record<string, boolean> = { 'run0-confirm': false }
-
-// An explicit boolean option wins; otherwise the rule's default applies
-export function ruleEnabled(options: Record<string, unknown> | undefined, id: string): boolean {
-  const v = options?.[ruleKey(id)]
-  if (typeof v === 'boolean') return v
-  return rules.find((r) => r.id === id)?.defaultOn ?? EXTRA_DEFAULTS[id] ?? false
-}
+// Defaults live in the manifest's userConfig, which Claude Code fills into options
+export const ruleEnabled = (options: Record<string, unknown> | undefined, id: string) =>
+  options?.[ruleKey(id)] === true
 
 export function firstDenial(tool: string, e: { command?: string }, options?: Record<string, unknown>): string | null {
   for (const r of rules) {

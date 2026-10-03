@@ -215,11 +215,7 @@ test('a rule is skipped when its option is false', () => {
   expect(firstDenial('Bash', { command: 'sudo ls' }, { sudo: true })).toContain('sudo is disabled')
 })
 
-test('only universal rules are on by default', () => {
-  expect(rules.filter((r) => r.defaultOn).map((r) => r.id)).toEqual(['malformed-bash', 'find-root'])
+test('a rule is off when its option is missing', () => {
   expect(firstDenial('Monitor', {})).toBeNull()
   expect(firstDenial('Bash', { command: 'sudo ls' })).toBeNull()
-  expect(firstDenial('Bash', { command: 'find /tmp -name x' })).toBeNull()
-  expect(firstDenial('Bash', { command: 'find / -xdev' })).toContain('find rooted at /')
-  expect(firstDenial('Bash', { command: 'echo "abc' })).toContain('Malformed bash')
 })
