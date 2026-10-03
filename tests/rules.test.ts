@@ -1,11 +1,14 @@
 import { expect, test } from 'claude-code/testing'
-import { firstDenial, run0Invocations } from '../hooks/rules.ts'
+import { register } from '../hooks/register.ts'
+import { firstDenial, ruleKey, rules, run0Invocations } from '../hooks/rules.ts'
 
-const deny = (command: string) => firstDenial('Bash', { command })
+// Every rule on, so each rule can be tested regardless of its default
+const ALL = Object.fromEntries(rules.map((r) => [ruleKey(r.id), true]))
+const deny = (command: string) => firstDenial('Bash', { command }, ALL)
 
 test('Monitor is denied', () => {
-  expect(firstDenial('Monitor', {})).toContain('Monitor is disabled')
-  expect(firstDenial('Monitor', {})).toContain('persistent-monitor')
+  expect(firstDenial('Monitor', {}, ALL)).toContain('Monitor is disabled')
+  expect(firstDenial('Monitor', {}, ALL)).toContain('run_in_background')
 })
 
 test('find rooted at / is denied, scoped find is not', () => {
@@ -177,33 +180,46 @@ test('run0Invocations reports the exact wrapped command', () => {
   expect(run0Invocations('ls; echo run0')).toEqual([])
 })
 
-test('run0 asks the user with the wrapped command before it runs', async ($, on) => {
+// Runs the registered tool.call handler directly, so the test controls the options the mod receives
+async function callBash(command: string, options: Record<string, unknown>, answer: string) {
+  let handler: any
+  const chain: any = { catch: () => chain }
+  register((_ev: string, _filter: unknown, h: unknown) => ((handler = h), chain), options)
   let asked = ''
-  let answer = 'Allow'
-  on('tool.call', ($, e: any) => {
-    if (e.tool === 'AskUserQuestion') {
-      asked = e.questions[0].question
-      return { result: { answers: { [e.questions[0].question]: answer } } }
-    }
-    return { result: 'ran' }
-  })
+  const $ = { ui: { ask: async (q: string) => ((asked = q), answer) } }
+  const next = async (e: any) => ({ result: 'ran', e })
+  const out = await handler($, { tool: 'Bash', command }, next)
+  return { out, asked }
+}
 
-  const ok = await $.tool.call({ tool: 'Bash', command: 'run0 -u root systemctl restart foo' })
-  expect(asked).toContain('run0 -u root systemctl restart foo')
-  expect(ok.result).toBe('ran')
+test('run0 asks the user with the wrapped command before it runs when enabled', async () => {
+  const on = { run0_confirm: true }
+  const ok = await callBash('run0 -u root systemctl restart foo', on, 'Allow')
+  expect(ok.asked).toContain('run0 -u root systemctl restart foo')
+  expect(ok.out.result).toBe('ran')
 
-  answer = 'Deny'
-  const no = await $.tool.call({ tool: 'Bash', command: 'run0 id' })
-  expect(JSON.stringify(no)).toContain('declined run0')
+  const no = await callBash('run0 id', on, 'Deny')
+  expect(JSON.stringify(no.out)).toContain('declined run0')
 
-  asked = ''
-  await $.tool.call({ tool: 'Bash', command: 'ls' })
-  expect(asked).toBe('')
+  expect((await callBash('ls', on, 'Allow')).asked).toBe('')
+  // Off by default: no prompt
+  const off = await callBash('run0 id', {}, 'Allow')
+  expect(off.asked).toBe('')
+  expect(off.out.result).toBe('ran')
 })
 
 test('a rule is skipped when its option is false', () => {
-  expect(firstDenial('Monitor', {}, { monitor_disabled: false })).toBeNull()
-  expect(firstDenial('Monitor', {}, { find_root: false })).toContain('Monitor is disabled')
+  expect(firstDenial('Monitor', {}, { ...ALL, monitor_disabled: false })).toBeNull()
+  expect(firstDenial('Monitor', {}, { ...ALL, find_root: false })).toContain('Monitor is disabled')
   expect(firstDenial('Bash', { command: 'sudo ls' }, { sudo: false })).toBeNull()
   expect(firstDenial('Bash', { command: 'sudo ls' }, { sudo: true })).toContain('sudo is disabled')
+})
+
+test('only universal rules are on by default', () => {
+  expect(rules.filter((r) => r.defaultOn).map((r) => r.id)).toEqual(['malformed-bash', 'find-root'])
+  expect(firstDenial('Monitor', {})).toBeNull()
+  expect(firstDenial('Bash', { command: 'sudo ls' })).toBeNull()
+  expect(firstDenial('Bash', { command: 'find /tmp -name x' })).toBeNull()
+  expect(firstDenial('Bash', { command: 'find / -xdev' })).toContain('find rooted at /')
+  expect(firstDenial('Bash', { command: 'echo "abc' })).toContain('Malformed bash')
 })
