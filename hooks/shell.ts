@@ -107,7 +107,7 @@ function walk(node: any, visit: (n: any, captured: boolean) => void, captured = 
 export interface Analysis {
   commands: SimpleCommand[]
   errors: string[] // parse errors, including those in nested scripts; empty if well-formed
-  untilClauses: SimpleCommand[][] // per `until` loop, the commands of its condition
+  untilClauses: SimpleCommand[][] // per `until` / `while !` loop, the commands of its condition
 }
 
 /** Every simple command in `source`, including those nested in subshells,
@@ -135,10 +135,14 @@ export function analyze(source: string, depth = 0): Analysis {
   try {
     walk(ast, (n, captured) => {
       for (const e of n.errors ?? []) out.errors.push(`${e.message} at ${e.pos}`)
-      if (n.type === 'While' && n.kind === 'until') {
-        const sub = analyze(source.slice(n.clause.pos, n.clause.end), depth + 1)
-        out.untilClauses.push(sub.commands)
-        out.errors.push(...sub.errors)
+      if (n.type === 'While') {
+        const clause = source.slice(n.clause.pos, n.clause.end)
+        // `while ! cond` waits for cond to succeed, exactly like `until cond`
+        if (n.kind === 'until' || clause.trimStart().startsWith('!')) {
+          const sub = analyze(clause, depth + 1)
+          out.untilClauses.push(sub.commands)
+          out.errors.push(...sub.errors)
+        }
       }
       if (n.type !== 'Command' || !n.name) return
       let { words, wrappers, wrapped } = unwrap([n.name.value, ...n.args.map(argText)])

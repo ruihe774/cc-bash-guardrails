@@ -73,7 +73,7 @@
     },
     "until_grep": {
       "default": false,
-      "description": "Deny \"until grep ...\" loops that never exit if the writer dies.",
+      "description": "Deny \"until grep ...\" and \"while ! grep ...\" loops that never exit if the writer dies.",
       "title": "Block until-grep loops",
       "type": "boolean"
     }

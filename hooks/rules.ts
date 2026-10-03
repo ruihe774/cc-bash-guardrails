@@ -134,7 +134,7 @@ export const rules: Rule[] = [
     tool: 'Bash',
     check: ({ command = '' }) =>
       analyze(command).untilClauses.some((cmds) => cmds.some((c) => GREPS.has(c.name)))
-        ? 'An "until grep ..." loop never exits if the process writing the log silently dies. Watch the process instead: tail -f --pid=<PID> <log> | grep -m1 <pattern> (tail stops when the process exits, ending the pipeline either way). Run it with run_in_background.'
+        ? 'An "until grep ..." (or "while ! grep ...") loop never exits if the process writing the log silently dies. Watch the process instead: tail -f --pid=<PID> <log> | grep -m1 <pattern> (tail stops when the process exits, ending the pipeline either way). Run it with run_in_background.'
         : null,
   },
   {

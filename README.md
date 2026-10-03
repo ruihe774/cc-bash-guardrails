@@ -17,7 +17,7 @@ A Claude Mod that enforces **guard rules on tool calls**. Before Claude runs a `
 | `find_xdev` | off | `find` without `-xdev` or `-mount`, so searches never cross filesystem boundaries. |
 | `pgrep_f` | off | `pgrep -f` without `-a`, and any `pkill -f`. `-f` can match helper processes such as the harness's own `bash -c` wrapper, and `pkill` would kill them; `pgrep -af` shows each command line so matches can be verified before killing by PID. |
 | `pgrep_captured` | off | `pgrep` output captured by a pipe or substitution (`pgrep x \| wc -l`, `$(pgrep x)`, `<(pgrep x)`). |
-| `until_grep` | off | `until grep ...` loops (also `egrep`, `fgrep` and `rg`), which never exit if the process writing the log dies. Claude is pointed to `tail -f --pid=<PID> <log> \| grep -m1 <pattern>` instead. |
+| `until_grep` | off | `until grep ...` and `while ! grep ...` loops (also `egrep`, `fgrep` and `rg`), which never exit if the process writing the log dies. Claude is pointed to `tail -f --pid=<PID> <log> \| grep -m1 <pattern>` instead. |
 | `monitor_disabled` | off | The `Monitor` tool. Claude is pointed to a background `Bash` command (`run_in_background`) that blocks until the next event and exits. |
 | `sudo` | off | `sudo`, including wrapped (`env X=1 sudo ls`) and nested (`bash -c "sudo ls"`) forms. Claude is pointed to `run0`. |
 | `run0_confirm` | off | Not a block: before any `run0` invocation, the user is asked to allow or deny it, with the exact wrapped command and the full Bash command shown. `run0`'s own graphical prompt does not show the command. |
