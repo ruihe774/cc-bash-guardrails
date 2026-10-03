@@ -2,5 +2,63 @@
   "name": "guard-rules",
   "version": "0.1.0",
   "description": "Tool-call guard rules (parser-based): blocks malformed bash, Monitor, find rooted at /, and pgrep -f without -a",
-  "author": { "name": "msk" }
+  "author": {
+    "name": "msk"
+  },
+  "userConfig": {
+    "malformed_bash": {
+      "type": "boolean",
+      "title": "Block malformed bash",
+      "description": "Deny Bash commands that fail to parse. Other Bash rules rely on the parse, so disabling this weakens them.",
+      "default": true
+    },
+    "monitor_disabled": {
+      "type": "boolean",
+      "title": "Block Monitor tool",
+      "description": "Deny the Monitor tool and point to the persistent-monitor MCP or background Bash.",
+      "default": true
+    },
+    "find_root": {
+      "type": "boolean",
+      "title": "Block find rooted at /",
+      "description": "Deny find commands whose starting point is the filesystem root.",
+      "default": true
+    },
+    "find_xdev": {
+      "type": "boolean",
+      "title": "Require find -xdev",
+      "description": "Deny find commands that do not stay on one filesystem (-xdev / -mount).",
+      "default": true
+    },
+    "pgrep_f": {
+      "type": "boolean",
+      "title": "Require pgrep -a with -f",
+      "description": "Deny pgrep -f unless it is pgrep -af.",
+      "default": true
+    },
+    "pgrep_captured": {
+      "type": "boolean",
+      "title": "Block captured pgrep output",
+      "description": "Deny pgrep output captured in a pipe or substitution.",
+      "default": true
+    },
+    "until_grep": {
+      "type": "boolean",
+      "title": "Block until-grep loops",
+      "description": "Deny \"until grep ...\" loops that never exit if the writer dies.",
+      "default": true
+    },
+    "sudo": {
+      "type": "boolean",
+      "title": "Block sudo",
+      "description": "Deny sudo and wrapped sudo; use run0 instead.",
+      "default": true
+    },
+    "run0_confirm": {
+      "type": "boolean",
+      "title": "Confirm run0",
+      "description": "Ask the user, showing the wrapped command, before any run0 invocation.",
+      "default": true
+    }
+  }
 }

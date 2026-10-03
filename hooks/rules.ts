@@ -163,9 +163,16 @@ export function run0Invocations(command: string): string[] {
   return [...new Set(out)]
 }
 
-export function firstDenial(tool: string, e: { command?: string }): string | null {
+// The userConfig key that toggles a rule: its id with underscores
+export const ruleKey = (id: string) => id.replace(/-/g, '_')
+
+// A rule is on unless its option is explicitly false, so a missing option keeps the guard
+export const ruleEnabled = (options: Record<string, unknown> | undefined, id: string) =>
+  options?.[ruleKey(id)] !== false
+
+export function firstDenial(tool: string, e: { command?: string }, options?: Record<string, unknown>): string | null {
   for (const r of rules) {
-    if (r.tool !== tool) continue
+    if (r.tool !== tool || !ruleEnabled(options, r.id)) continue
     const reason = r.check(e)
     if (reason) return reason
   }

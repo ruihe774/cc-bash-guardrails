@@ -200,3 +200,10 @@ test('run0 asks the user with the wrapped command before it runs', async ($, on)
   await $.tool.call({ tool: 'Bash', command: 'ls' })
   expect(asked).toBe('')
 })
+
+test('a rule is skipped when its option is false', () => {
+  expect(firstDenial('Monitor', {}, { monitor_disabled: false })).toBeNull()
+  expect(firstDenial('Monitor', {}, { find_root: false })).toContain('Monitor is disabled')
+  expect(firstDenial('Bash', { command: 'sudo ls' }, { sudo: false })).toBeNull()
+  expect(firstDenial('Bash', { command: 'sudo ls' }, { sudo: true })).toContain('sudo is disabled')
+})
