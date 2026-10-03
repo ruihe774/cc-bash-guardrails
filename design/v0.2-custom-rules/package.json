@@ -1,0 +1,15 @@
+{
+  "name": "bash-guardrails-v0.2-prototype",
+  "private": true,
+  "type": "module",
+  "description": "Feasibility prototypes for v0.2 custom rules. Not part of the plugin.",
+  "scripts": {
+    "jexl": "bun proto-jexl.ts",
+    "cel": "bun proto-cel.ts",
+    "probe": "sh probe.sh"
+  },
+  "devDependencies": {
+    "@marcbachmann/cel-js": "8.0.0",
+    "jexl": "2.3.0"
+  }
+}
