@@ -74,15 +74,10 @@ function unwrap(words: string[]): { words: string[]; wrappers: string[]; wrapped
   return { words, wrappers, wrapped }
 }
 
-// Every child of a node: own properties plus the lazy getters the parser defines
-// on its prototypes (parts, elements, index, expression, ...).
+// Every child of a node. The parser's lazy fields (parts, elements, index,
+// expression, ...) are not own properties, but its toJSON() lists them all.
 function children(node: any): any[] {
-  const out: any[] = Object.values(node)
-  const keys = new Set<string>()
-  for (let p = Object.getPrototypeOf(node); p && p !== Object.prototype; p = Object.getPrototypeOf(p))
-    for (const [k, d] of Object.entries(Object.getOwnPropertyDescriptors(p))) if (d.get) keys.add(k)
-  for (const k of keys) out.push(node[k])
-  return out
+  return Object.values(typeof node.toJSON === 'function' ? node.toJSON() : node)
 }
 
 function walk(node: any, visit: (n: any, captured: boolean) => void, captured = false, seen = new Set<any>()): void {
