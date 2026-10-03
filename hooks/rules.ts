@@ -54,7 +54,8 @@ const isFilesystemRoot = (p: string) => /^\/+(\.\/?)*\*?$/.test(p)
 // pgrep options that take a value, so in `-uf` the f is a user name, not -f
 const PGREP_ARG_OPTS = 'dFgGJOPrstTuU'
 
-function pgrepFlags(args: string[]): { full: boolean; listFull: boolean } {
+// pkill has no list-full option: its -a is not a thing, so `listFull` stays false
+function pgrepFlags(args: string[], prog: string): { full: boolean; listFull: boolean } {
   let full = false
   let listFull = false
   for (const a of args) {
@@ -64,7 +65,7 @@ function pgrepFlags(args: string[]): { full: boolean; listFull: boolean } {
     else if (/^-[^-]/.test(a)) {
       for (const ch of a.slice(1)) {
         if (ch === 'f') full = true
-        else if (ch === 'a') listFull = true
+        else if (ch === 'a' && prog === 'pgrep') listFull = true
         else if (PGREP_ARG_OPTS.includes(ch)) break
       }
     }
@@ -113,11 +114,11 @@ export const rules: Rule[] = [
     tool: 'Bash',
     check: ({ command = '' }) =>
       simpleCommands(command).some((c) => {
-        if (c.name !== 'pgrep') return false
-        const { full, listFull } = pgrepFlags(c.args)
+        if (c.name !== 'pgrep' && c.name !== 'pkill') return false
+        const { full, listFull } = pgrepFlags(c.args, c.name)
         return full && !listFull
       })
-        ? 'pgrep -f can match helper processes spawned by the harness (e.g. its bash -c wrapper). Use pgrep -af and confirm each match cmdline instead.'
+        ? 'pgrep -f and pkill -f can match helper processes spawned by the harness (e.g. its bash -c wrapper), and pkill would kill them. Use pgrep -af, confirm each match cmdline, then kill by PID.'
         : null,
   },
   {

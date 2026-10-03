@@ -1,7 +1,7 @@
 {
   "name": "guard-rules",
   "version": "0.1.0",
-  "description": "Tool-call guard rules (parser-based). On by default: blocks malformed bash and find rooted at /. Opt-in: Monitor, find without -xdev, pgrep pitfalls, until-grep loops, sudo, run0 confirmation",
+  "description": "Tool-call guard rules (parser-based). On by default: blocks malformed bash and find rooted at /. Opt-in: Monitor, find without -xdev, pgrep/pkill pitfalls, until-grep loops, sudo, run0 confirmation",
   "author": {
     "name": "msk"
   },
@@ -9,7 +9,7 @@
     "malformed_bash": {
       "type": "boolean",
       "title": "Block malformed bash",
-      "description": "Deny Bash commands that fail to parse. Other Bash rules rely on the parse, so disabling this weakens them.",
+      "description": "Deny Bash commands that fail to parse. Other Bash rules, including the run0 confirmation, rely on the parse, so disabling this weakens them.",
       "default": true
     },
     "monitor_disabled": {
@@ -21,7 +21,7 @@
     "find_root": {
       "type": "boolean",
       "title": "Block find rooted at /",
-      "description": "Deny find commands whose starting point is the filesystem root.",
+      "description": "Deny find commands whose starting point is the filesystem root, even with -xdev.",
       "default": true
     },
     "find_xdev": {
@@ -32,8 +32,8 @@
     },
     "pgrep_f": {
       "type": "boolean",
-      "title": "Require pgrep -a with -f",
-      "description": "Deny pgrep -f unless it is pgrep -af.",
+      "title": "Require pgrep -a with -f; block pkill -f",
+      "description": "Deny pgrep -f unless it is pgrep -af, and deny pkill -f.",
       "default": false
     },
     "pgrep_captured": {

@@ -70,6 +70,11 @@ test('pgrep -f denied unless -a present', () => {
   for (const c of ['pgrep -af foo', 'pgrep foo', 'pgrep -x foo']) expect(deny(c)).toBe(null)
 })
 
+test('pkill -f is denied, -a does not help', () => {
+  for (const c of ['pkill -f foo', 'pkill -9 -f foo', 'pkill -fa foo', 'sudo pkill -f foo']) expect(deny(c)).toContain('pkill -f')
+  for (const c of ['pkill foo', 'pkill -9 foo', 'pkill -u f foo', 'echo pkill -f']) expect(deny(c)).toBe(null)
+})
+
 test('pgrep output must not be captured', () => {
   for (const c of [
     'pgrep foo | wc -l',
@@ -206,6 +211,44 @@ test('run0 asks the user with the wrapped command before it runs when enabled', 
   const off = await callBash('run0 id', {}, 'Allow')
   expect(off.asked).toBe('')
   expect(off.out.result).toBe('ran')
+})
+
+// Registers the mod and returns both the hook and its .catch handler
+function registerMod(options: Record<string, unknown>) {
+  const h: { hook?: any; onError?: any } = {}
+  const chain: any = { catch: (fn: unknown) => ((h.onError = fn), chain) }
+  register((_ev: string, _filter: unknown, hook: unknown) => ((h.hook = hook), chain), options)
+  return h
+}
+
+test('Monitor is denied through the registered hook', async () => {
+  const { hook } = registerMod({ monitor_disabled: true })
+  const next = async (e: any) => ({ result: 'ran', e })
+  expect(JSON.stringify(await hook({}, { tool: 'Monitor' }, next))).toContain('Monitor is disabled')
+  expect((await hook({}, { tool: 'Bash', command: 'ls' }, next)).result).toBe('ran')
+})
+
+test('a dismissed run0 prompt denies the call', async () => {
+  const { hook } = registerMod({ run0_confirm: true })
+  const $ = { ui: { ask: async () => { throw new Error('dismissed') } } }
+  const next = async () => ({ result: 'ran' })
+  expect(JSON.stringify(await hook($, { tool: 'Bash', command: 'run0 id' }, next))).toContain('not approved')
+})
+
+test('a free-text answer to the run0 prompt is a denial that quotes it', async () => {
+  const on = { run0_confirm: true }
+  const out = await callBash('run0 id', on, 'only if you use -D /tmp')
+  expect(out.out.result).toBeUndefined()
+  expect(JSON.stringify(out.out)).toContain('only if you use -D /tmp')
+})
+
+test('the error handler fails closed, unless the hook had already passed the call on', async () => {
+  const { onError } = registerMod({})
+  const failed = { called: false, error: { message: 'boom' } }
+  const unchecked = Object.assign(async () => ({ result: 'ran' }), failed)
+  expect(JSON.stringify(await onError({}, { tool: 'Bash', command: 'ls' }, unchecked))).toContain('boom')
+  const passed = Object.assign(async () => ({ result: 'ran' }), { ...failed, called: true })
+  expect((await onError({}, { tool: 'Bash', command: 'ls' }, passed)).result).toBe('ran')
 })
 
 test('a rule is skipped when its option is false', () => {
