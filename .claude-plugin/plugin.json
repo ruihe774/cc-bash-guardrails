@@ -1,64 +1,69 @@
 {
-  "name": "guard-rules",
-  "version": "0.1.0",
-  "description": "Tool-call guard rules (parser-based). On by default: blocks malformed bash and find rooted at /. Opt-in: Monitor, find without -xdev, pgrep/pkill pitfalls, until-grep loops, sudo, run0 confirmation",
   "author": {
-    "name": "msk"
+    "email": "ruihe774@outlook.com",
+    "name": "Rui He"
   },
+  "description": "Tool-call guard rules (parser-based). On by default: blocks malformed bash and find rooted at /. Opt-in: Monitor, find without -xdev, pgrep/pkill pitfalls, until-grep loops, sudo, run0 confirmation",
+  "displayName": "bash-guardrails",
+  "homepage": "https://github.com/ruihe774/cc-bash-guardrails",
+  "license": "Unlicense",
+  "name": "bash-guardrails",
+  "repository": "https://github.com/ruihe774/cc-bash-guardrails",
   "userConfig": {
-    "malformed_bash": {
-      "type": "boolean",
-      "title": "Block malformed bash",
-      "description": "Deny Bash commands that fail to parse. Other Bash rules, including the run0 confirmation, rely on the parse, so disabling this weakens them.",
-      "default": true
-    },
-    "monitor_disabled": {
-      "type": "boolean",
-      "title": "Block Monitor tool",
-      "description": "Deny the Monitor tool and point to background Bash.",
-      "default": false
-    },
     "find_root": {
-      "type": "boolean",
-      "title": "Block find rooted at /",
+      "default": true,
       "description": "Deny find commands whose starting point is the filesystem root, even with -xdev.",
-      "default": true
+      "title": "Block find rooted at /",
+      "type": "boolean"
     },
     "find_xdev": {
-      "type": "boolean",
-      "title": "Require find -xdev",
+      "default": false,
       "description": "Deny find commands that do not stay on one filesystem (-xdev / -mount).",
-      "default": false
+      "title": "Require find -xdev",
+      "type": "boolean"
     },
-    "pgrep_f": {
-      "type": "boolean",
-      "title": "Require pgrep -a with -f; block pkill -f",
-      "description": "Deny pgrep -f unless it is pgrep -af, and deny pkill -f.",
-      "default": false
+    "malformed_bash": {
+      "default": true,
+      "description": "Deny Bash commands that fail to parse. Other Bash rules, including the run0 confirmation, rely on the parse, so disabling this weakens them.",
+      "title": "Block malformed bash",
+      "type": "boolean"
+    },
+    "monitor_disabled": {
+      "default": false,
+      "description": "Deny the Monitor tool and point to background Bash.",
+      "title": "Block Monitor tool",
+      "type": "boolean"
     },
     "pgrep_captured": {
-      "type": "boolean",
-      "title": "Block captured pgrep output",
+      "default": false,
       "description": "Deny pgrep output captured in a pipe or substitution.",
-      "default": false
+      "title": "Block captured pgrep output",
+      "type": "boolean"
     },
-    "until_grep": {
-      "type": "boolean",
-      "title": "Block until-grep loops",
-      "description": "Deny \"until grep ...\" loops that never exit if the writer dies.",
-      "default": false
-    },
-    "sudo": {
-      "type": "boolean",
-      "title": "Block sudo",
-      "description": "Deny sudo and wrapped sudo; use run0 instead.",
-      "default": false
+    "pgrep_f": {
+      "default": false,
+      "description": "Deny pgrep -f unless it is pgrep -af, and deny pkill -f.",
+      "title": "Require pgrep -a with -f; block pkill -f",
+      "type": "boolean"
     },
     "run0_confirm": {
-      "type": "boolean",
-      "title": "Confirm run0",
+      "default": false,
       "description": "Ask the user, showing the wrapped command, before any run0 invocation.",
-      "default": false
+      "title": "Confirm run0",
+      "type": "boolean"
+    },
+    "sudo": {
+      "default": false,
+      "description": "Deny sudo and wrapped sudo; use run0 instead.",
+      "title": "Block sudo",
+      "type": "boolean"
+    },
+    "until_grep": {
+      "default": false,
+      "description": "Deny \"until grep ...\" loops that never exit if the writer dies.",
+      "title": "Block until-grep loops",
+      "type": "boolean"
     }
-  }
+  },
+  "version": "0.1.0"
 }
