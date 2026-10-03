@@ -20,6 +20,6 @@ export function register(on: any, options?: Record<string, unknown>) {
   }).catch(async ($: any, e: any, next: any) => {
     // Without this a failed hook is skipped and the call runs unguarded
     if (next.called) return next(e)
-    return { deny: `guard-rules failed (${next.error.message}); refusing the call rather than running it unchecked.` }
+    return { deny: `bash-guardrails failed (${next.error.message}); refusing the call rather than running it unchecked.` }
   })
 }

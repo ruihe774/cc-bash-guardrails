@@ -1,4 +1,4 @@
 {
-  "description": "guard-rules hooks module",
+  "description": "bash-guardrails hooks module",
   "modules": ["./register.ts"]
 }

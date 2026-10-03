@@ -1,4 +1,4 @@
-# guard-rules
+# bash-guardrails
 
 A Claude Mod (new feature, v2.1.287+) that enforces guard rules on tool calls. A mod is a plugin directory whose hooks run as JS/TS middleware.
 

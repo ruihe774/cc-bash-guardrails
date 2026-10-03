@@ -1,8 +1,12 @@
-# guard-rules
+# bash-guardrails
 
 A Claude Mod that enforces **guard rules on tool calls**. Before Claude runs a `Bash` command (or calls the `Monitor` tool), the plugin checks it against a set of rules and, if one matches, blocks the call with a short explanation so Claude can correct course on its own. Each rule is a toggle, and only two are on by default.
 
-Bash commands are checked with a real shell parser (a vendored copy of [unbash](https://github.com/webpro-nl/unbash)), not by matching substrings. `echo "find / -name x"` is fine, while `cd /x && find / -name y`, `bash -c "find / -type f"` and `echo $(find /)` are caught. Commands behind wrappers such as `env`, `timeout`, `nice`, `xargs`, `sudo` and `run0` are checked too.
+## Why not auto mode or a regex hook?
+
+**Auto mode.** Auto mode's classifier decides whether an action is *unsafe or unauthorized*. The pitfalls here are different: commands that are allowed and not malicious but reliably waste time or cause trouble, such as `find /` crawling the whole filesystem, `pgrep -f` matching the harness's own `bash -c` wrapper, or an `until grep` loop that never exits when the writer dies. The auto mode classifier can reasonably let them through, since nothing about them is unsafe. These rules are deterministic, so the same command is always handled the same way, and each denial tells Claude what to do instead. They work alongside auto mode rather than replacing it.
+
+**Regex hooks.** The usual way to guard Bash is a hook that matches the command text with a regular expression. That is brittle in both directions. `echo "find / -name x"` trips a regex for `find /`, while `cd /x && find / -name y`, `bash -c "find / -type f"`, `echo $(find /)`, `\sudo ls` or `env X=1 timeout 5 find /` slip past a simple one. This plugin parses the command with a real shell parser (a vendored copy of [unbash](https://github.com/webpro-nl/unbash)) and checks the commands that would actually run, so quoting, escapes, pipelines, `&&` chains, subshells, command substitutions, heredocs and `bash -c` strings are all understood. Commands behind wrappers such as `env`, `timeout`, `nice`, `xargs`, `sudo` and `run0` are checked too.
 
 ## What it does
 
@@ -37,7 +41,7 @@ Install it from the official Anthropic plugin directory. In case you haven't add
 ```
 claude plugin marketplace add anthropic-plugin-directory
 claude plugin marketplace update anthropic-plugin-directory
-claude plugin install guard-rules@anthropic-plugin-directory
+claude plugin install bash-guardrails@anthropic-plugin-directory
 ```
 
 If you prefer using the TUI, inside a session, use `/plugin marketplace add`, `/plugin marketplace update` and `/plugin install` with the same arguments.
@@ -46,18 +50,18 @@ To update to a newer release later:
 
 ```
 claude plugin marketplace update anthropic-plugin-directory
-claude plugin update guard-rules@anthropic-plugin-directory
+claude plugin update bash-guardrails@anthropic-plugin-directory
 ```
 
 To try a local checkout while developing, load it directly instead:
 
 ```
-claude --plugin-dir /path/to/guard-rules
+claude --plugin-dir /path/to/cc-bash-guardrails
 ```
 
 ## Configuration
 
-Each rule is a boolean `userConfig` option named as in the table above, for example `sudo` or `find_xdev`. Only `malformed_bash` and `find_root` default to `true`. Set the options in the plugin's configuration, or under `pluginConfigs` in your settings, keyed by the plugin's id (`guard-rules@anthropic-plugin-directory`).
+Each rule is a boolean `userConfig` option named as in the table above, for example `sudo` or `find_xdev`. Only `malformed_bash` and `find_root` default to `true`. Set the options in the plugin's configuration, or under `pluginConfigs` in your settings, keyed by the plugin's id (`bash-guardrails@anthropic-plugin-directory`).
 
 ## What the hook does
 
