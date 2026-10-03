@@ -14,12 +14,12 @@ function findStartPoints(args: string[]): string[] {
   let i = 0
   for (; i < args.length; i++) {
     if (args[i] === '-D') i++
-    else if (!/^-[HLPO]/.test(args[i])) break
+    else if (!/^-[HLPO]/.test(args[i] ?? '')) break
   }
   if (args[i] === '--') i++
   const paths: string[] = []
   for (; i < args.length; i++) {
-    const a = args[i]
+    const a = args[i]!
     if (a.startsWith('-') || a === '(' || a === '!') break
     paths.push(a)
   }
@@ -38,7 +38,7 @@ const FIND_VALUE_PRIMARIES = new Set([
 // -mount is the traditional spelling of -xdev
 function findStaysOnFilesystem(args: string[]): boolean {
   for (let i = 0; i < args.length; i++) {
-    const a = args[i]
+    const a = args[i]!
     if (a === '-xdev' || a === '-mount') return true
     if (/^-(exec|execdir|ok|okdir)$/.test(a)) {
       // The embedded command runs up to a lone ; or +
@@ -158,7 +158,7 @@ export function run0Invocations(command: string): string[] {
     if (c.name === 'run0') out.push(['run0', ...c.args].map(shellQuote).join(' '))
     // Wrappers nested in wrappers (`env X=1 run0 ls`): each run0 reports its own tail
     c.wrappers.forEach((w, i) => {
-      if (w === 'run0') out.push(c.wrapped[i].map(shellQuote).join(' '))
+      if (w === 'run0') out.push(c.wrapped[i]!.map(shellQuote).join(' '))
     })
   }
   return [...new Set(out)]

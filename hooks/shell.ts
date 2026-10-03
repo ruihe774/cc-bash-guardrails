@@ -45,7 +45,7 @@ function unwrap(words: string[]): { words: string[]; wrappers: string[]; wrapped
   const wrappers: string[] = []
   const wrapped: string[][] = []
   for (let guard = 0; words.length && guard < 16; guard++) {
-    const prog = basename(words[0])
+    const prog = basename(words[0]!)
     const w = WRAPPERS[prog]
     if (!w) break
     wrappers.push(prog)
@@ -53,13 +53,13 @@ function unwrap(words: string[]): { words: string[]; wrappers: string[]; wrapped
     let i = 1
     let skip = w.positionals ?? 0
     for (; i < words.length; i++) {
-      const t = words[i]
+      const t = words[i]!
       if (t === '--') {
         i++
         break
       }
       if (t.startsWith('-') && t.length > 1) {
-        if (!t.startsWith('--') && t.length === 2 && w.argOpts?.includes(t[1])) i++
+        if (!t.startsWith('--') && t.length === 2 && w.argOpts?.includes(t[1]!)) i++
         continue
       }
       if (prog === 'env' && /^[A-Za-z_][A-Za-z0-9_]*=/.test(t)) continue
@@ -148,14 +148,15 @@ export function analyze(source: string, depth = 0): Analysis {
         if (!last || !call) return
         words = call
       }
-      const name = basename(words[0])
+      const name = basename(words[0]!)
       const args = words.slice(1)
       out.commands.push({ name, args, wrappers, wrapped, captured })
 
       // Re-parse script strings handed to another shell
       if (SHELLS.has(name)) {
         const c = args.findIndex((a) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a))
-        if (c >= 0 && args[c + 1] !== undefined) nested(args[c + 1], captured)
+        const script = args[c + 1]
+        if (c >= 0 && script !== undefined) nested(script, captured)
       } else if (name === 'eval') {
         nested(args.join(' '), captured)
       }
