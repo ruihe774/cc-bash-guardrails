@@ -107,13 +107,14 @@ function walk(node: any, visit: (n: any, captured: boolean) => void, captured = 
 export interface Analysis {
   commands: SimpleCommand[]
   errors: string[] // parse errors, including those in nested scripts; empty if well-formed
+  untilClauses: SimpleCommand[][] // per `until` loop, the commands of its condition
 }
 
 /** Every simple command in `source`, including those nested in subshells,
  *  substitutions, control structures and `sh -c '...'` / `eval` strings, plus
  *  any parse errors. A non-empty `errors` means `commands` may be incomplete. */
 export function analyze(source: string, depth = 0): Analysis {
-  const out: Analysis = { commands: [], errors: [] }
+  const out: Analysis = { commands: [], errors: [], untilClauses: [] }
   if (depth > MAX_DEPTH) {
     out.errors.push('nesting too deep')
     return out
@@ -129,10 +130,16 @@ export function analyze(source: string, depth = 0): Analysis {
     const sub = analyze(script, depth + 1)
     out.commands.push(...sub.commands.map((c) => ({ ...c, captured: c.captured || captured })))
     out.errors.push(...sub.errors)
+    out.untilClauses.push(...sub.untilClauses)
   }
   try {
     walk(ast, (n, captured) => {
       for (const e of n.errors ?? []) out.errors.push(`${e.message} at ${e.pos}`)
+      if (n.type === 'While' && n.kind === 'until') {
+        const sub = analyze(source.slice(n.clause.pos, n.clause.end), depth + 1)
+        out.untilClauses.push(sub.commands)
+        out.errors.push(...sub.errors)
+      }
       if (n.type !== 'Command' || !n.name) return
       let { words, wrappers, wrapped } = unwrap([n.name.value, ...n.args.map(argText)])
       // A wrapper with nothing to run (`sudo -v`) is itself the command

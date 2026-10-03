@@ -39,6 +39,29 @@ test('find without -xdev is denied', () => {
     expect(deny(c)).toBe(null)
 })
 
+test('until grep loops are denied', () => {
+  for (const c of [
+    'until grep -q DONE app.log; do sleep 5; done',
+    'until grep -q DONE app.log\ndo sleep 5\ndone',
+    'ls; until grep -q "a b" f; do sleep 1; done; echo ok',
+    'until sudo grep -q x f; do sleep 1; done',
+    'until [ -f x ] && grep -q DONE f; do sleep 1; done',
+    'until tail -n1 f | grep -q DONE; do sleep 1; done',
+    'bash -c "until grep -q DONE f; do sleep 1; done"',
+    'until rg -q DONE f; do sleep 1; done',
+  ])
+    expect(deny(c)).toContain('until grep')
+  for (const c of [
+    'tail -f --pid=123 app.log | grep -m1 DONE',
+    'until kill -0 123 2>/dev/null; do sleep 1; done',
+    'until [ -f done ]; do sleep 1; done',
+    'while kill -0 123; do grep -q x f; sleep 1; done',
+    'until [ -f done ]; do grep -q x f; sleep 1; done',
+    'echo until grep',
+  ])
+    expect(deny(c)).toBe(null)
+})
+
 test('pgrep -f denied unless -a present', () => {
   for (const c of ['pgrep -f foo', 'pgrep -fl foo']) expect(deny(c)).toContain('pgrep -f')
   for (const c of ['pgrep -af foo', 'pgrep foo', 'pgrep -x foo']) expect(deny(c)).toBe(null)

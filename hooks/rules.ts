@@ -72,6 +72,8 @@ function pgrepFlags(args: string[]): { full: boolean; listFull: boolean } {
   return { full, listFull }
 }
 
+const GREPS = new Set(['grep', 'egrep', 'fgrep', 'rg'])
+
 export const rules: Rule[] = [
   // Runs first: if the command can't be parsed, the rules below can't be trusted to see all of it
   {
@@ -124,6 +126,14 @@ export const rules: Rule[] = [
     check: ({ command = '' }) =>
       simpleCommands(command).some((c) => c.name === 'pgrep' && c.captured)
         ? 'Do not capture pgrep output in a pipe or substitution ($(...), `...`, <(...)). Let pgrep print straight to stdout and read the result.'
+        : null,
+  },
+  {
+    id: 'until-grep',
+    tool: 'Bash',
+    check: ({ command = '' }) =>
+      analyze(command).untilClauses.some((cmds) => cmds.some((c) => GREPS.has(c.name)))
+        ? 'An "until grep ..." loop never exits if the process writing the log silently dies. Watch the process instead: tail -f --pid=<PID> <log> | grep -m1 <pattern> (tail stops when the process exits, ending the pipeline either way). Run it with run_in_background and a long timeout.'
         : null,
   },
   {
