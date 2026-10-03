@@ -1,9 +1,13 @@
-import { firstDenial, run0Invocations, ruleEnabled } from './rules.ts'
+import { firstDenialBy, run0Invocations, ruleEnabled } from './rules.ts'
 
 export function register(on: any, options?: Record<string, unknown>) {
   on('tool.call', { tool: ['Monitor', 'Bash'] }, async ($: any, e: any, next: any) => {
-    const reason = firstDenial(e.tool, e, options)
-    if (reason) return { deny: reason }
+    const denial = firstDenialBy(e.tool, e, options)
+    if (denial) {
+      // Name the rule only: the command is in the verbose transcript (Ctrl+O)
+      try { $.ui.toast(`Rule '${denial.rule}' denied a command`) } catch {}
+      return { deny: denial.reason }
+    }
     // run0's graphical prompt does not show the wrapped command, so show it here first
     const run0 = ruleEnabled(options, 'run0_confirm') ? run0Invocations(typeof e.command === 'string' ? e.command : '') : []
     if (run0.length) {

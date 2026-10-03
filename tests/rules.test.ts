@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 import { register } from '../hooks/register.ts'
-import { firstDenial, ruleKey, rules, run0Invocations } from '../hooks/rules.ts'
+import { firstDenial, firstDenialBy, ruleKey, rules, run0Invocations } from '../hooks/rules.ts'
 
 // Every rule on, so each rule can be tested regardless of its default
 const ALL = Object.fromEntries(rules.map((r) => [ruleKey(r.id), true]))
@@ -290,4 +290,39 @@ test('a rule is skipped when its option is false', () => {
 test('a rule is off when its option is missing', () => {
   expect(firstDenial('Monitor', {})).toBeNull()
   expect(firstDenial('Bash', { command: 'sudo ls' })).toBeNull()
+})
+
+test('a denial shows a toast naming the rule, without the command', async () => {
+  const { hook } = registerMod({ sudo: true, monitor_disabled: true })
+  const toasts: string[] = []
+  const $ = { ui: { toast: (text: string) => void toasts.push(text) } }
+  const next = async () => ({ result: 'ran' })
+  const secret = 'sudo cat /etc/secret-token'
+  expect(JSON.stringify(await hook($, { tool: 'Bash', command: secret }, next))).toContain('sudo is disabled')
+  expect(toasts).toEqual(["Rule 'sudo' denied a command"])
+  expect(toasts[0]).not.toContain('secret-token')
+  await hook($, { tool: 'Monitor', command: 'ls' }, next)
+  expect(toasts[1]).toBe("Rule 'monitor-disabled' denied a command")
+})
+
+test('no toast when the call is allowed', async () => {
+  const { hook } = registerMod({ sudo: true })
+  const toasts: string[] = []
+  const $ = { ui: { toast: (text: string) => void toasts.push(text) } }
+  expect((await hook($, { tool: 'Bash', command: 'ls' }, async () => ({ result: 'ran' }))).result).toBe('ran')
+  expect(toasts).toEqual([])
+})
+
+test('a failing toast does not turn a denial into an allow', async () => {
+  const { hook } = registerMod({ sudo: true })
+  const $ = { ui: { toast: () => { throw new Error('no ui') } } }
+  const out = await hook($, { tool: 'Bash', command: 'sudo ls' }, async () => ({ result: 'ran' }))
+  expect(out.result).toBeUndefined()
+  expect(JSON.stringify(out)).toContain('sudo is disabled')
+})
+
+test('firstDenialBy reports the rule id with the reason', () => {
+  expect(firstDenialBy('Bash', { command: 'sudo ls' }, ALL)?.rule).toBe('sudo')
+  expect(firstDenialBy('Monitor', {}, { find_root: true, monitor_disabled: false })?.rule).toBe('monitor-no-command')
+  expect(firstDenialBy('Bash', { command: 'ls' }, ALL)).toBeNull()
 })

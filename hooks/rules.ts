@@ -174,17 +174,19 @@ export const ruleEnabled = (options: Record<string, unknown> | undefined, id: st
 // Monitor runs a shell command just like Bash, so the Bash rules apply to it too
 const appliesTo = (r: Rule, tool: string) => r.tool === tool || (tool === 'Monitor' && r.tool === 'Bash')
 
-export function firstDenial(tool: string, e: { command?: string; ws?: unknown }, options?: Record<string, unknown>): string | null {
+export function firstDenialBy(tool: string, e: { command?: string; ws?: unknown }, options?: Record<string, unknown>): { rule: string; reason: string } | null {
   for (const r of rules) {
     if (!appliesTo(r, tool) || !ruleEnabled(options, r.id)) continue
     if (tool === 'Monitor' && r.tool === 'Bash' && typeof e.command !== 'string') {
       // A ws source streams a WebSocket and runs no shell, so there is nothing for the shell rules to check
       if (e.ws !== undefined) continue
       // Fail closed: with neither field the shell rules would be checking an empty string
-      return 'Monitor call has no command string that the Bash guard rules can check; refusing it rather than running it unchecked.'
+      return { rule: 'monitor-no-command', reason: 'Monitor call has no command string that the Bash guard rules can check; refusing it rather than running it unchecked.' }
     }
     const reason = r.check(e)
-    if (reason) return reason
+    if (reason) return { rule: r.id, reason }
   }
   return null
 }
+
+export const firstDenial = (...args: Parameters<typeof firstDenialBy>): string | null => firstDenialBy(...args)?.reason ?? null
