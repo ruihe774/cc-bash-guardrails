@@ -3,7 +3,7 @@
     "email": "ruihe774@outlook.com",
     "name": "Rui He"
   },
-  "description": "Tool-call guard rules (parser-based). On by default: blocks malformed bash and find rooted at /. Opt-in: Monitor, find without -xdev, pgrep/pkill pitfalls, until-grep loops, sudo, run0 confirmation",
+  "description": "Tool-call guard rules (parser-based), written in CEL; add your own in ~/.claude/bash-guardrails.json or .claude/bash-guardrails.json. On by default: blocks malformed bash and find rooted at /. Opt-in: Monitor, find without -xdev, pgrep/pkill pitfalls, until-grep loops, sudo, run0 confirmation",
   "displayName": "bash-guardrails",
   "homepage": "https://github.com/ruihe774/cc-bash-guardrails",
   "keywords": [
@@ -13,13 +13,14 @@
     "hooks",
     "mod",
     "tool-call",
+    "cel",
     "shell",
     "find",
     "pgrep",
     "sudo",
     "run0"
   ],
-  "license": "Unlicense AND ISC",
+  "license": "Unlicense AND ISC AND MIT",
   "name": "bash-guardrails",
   "repository": "https://github.com/ruihe774/cc-bash-guardrails",
   "userConfig": {
@@ -45,6 +46,12 @@
       "default": false,
       "description": "Deny the Monitor tool and point to background Bash.",
       "title": "Block Monitor tool",
+      "type": "boolean"
+    },
+    "monitor_no_command": {
+      "default": true,
+      "description": "Deny Monitor calls that have neither a command string the shell rules can check nor a ws source.",
+      "title": "Block Monitor without a command",
       "type": "boolean"
     },
     "pgrep_captured": {
@@ -78,5 +85,5 @@
       "type": "boolean"
     }
   },
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

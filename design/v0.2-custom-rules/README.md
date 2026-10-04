@@ -1,6 +1,18 @@
 # v0.2 design: custom rules in a DSL
 
-Status: **evaluation only, not implemented.** Nothing here is loaded by the plugin.
+Status: **implemented in v0.2** (see the main README's "Custom rules"). Nothing here is loaded by the plugin.
+
+The prototypes diff against the v0.1 rule code (`firstDenial`, `run0Invocations` in `hooks/rules.ts`), which v0.2 removed. To run them, check out commit `001d692` first.
+
+Decisions taken in the implementation, where this note left them open or differs:
+
+- **Ask order:** every deny rule (built-in, then the user file, then the project file) runs before any `ask` rule, so the user is never asked about a call that is then denied.
+- **`monitor-no-command`** is its own rule with its own toggle (`monitor_no_command`, on by default).
+- **Problems are reported with `$.ui.log`** (a transcript line), not `$.ui.notice`, which only annotates an open tool dialog.
+- **Rule files:** `~/.claude/bash-guardrails.json` (or `$CLAUDE_CONFIG_DIR/bash-guardrails.json`) and `.claude/bash-guardrails.json` under `$.session.root()`. Plain JSON. Custom files see the built-in defs, may not redefine them, and may not reuse a built-in id. Custom rules can set `"enabled": false` on themselves only.
+- **The built-in rule file** is `hooks/builtin-rules.ts`: the mod loader imports only code files, not `.json`.
+- **`let` types** are inferred by the type checker, not fixed to `list<string>`. **`Cmd` and `Link`** are registered with constructors, since cel-js rejects indexing (`c.chain[0]`) into plain objects of a registered type.
+- **`ask`** defaults: options `Allow`/`Deny`, allowed when the answer is the first option, and generic `declined` / `dismissed` texts.
 
 Goal: let users write their own guard rules. Gate: the v0.1 rules must be expressible in the same DSL, so no rule stays "first-class" in code.
 
