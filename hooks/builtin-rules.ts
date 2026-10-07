@@ -93,10 +93,10 @@ export const builtinRules: RuleFile = {
     PYTHON_NAME: String.raw`^python(3(\.\d+)?)?$`,
     // Options stop at the first operand: the script file, or - for stdin
     PYTHON: { short: 'bBdEhiIOPqsSuvVxc:m:W:X:', posix: true },
-    // A Python script that edits a file: it imports re, opens a file (open() or pathlib)
-    // and has a multiline (triple-quoted) string literal. It must match all three.
+    // A Python script that edits a file: it imports re or calls .replace(), opens a file
+    // (open() or pathlib) and has a multiline (triple-quoted) string literal. It must match all three.
     PY_EDIT: [
-      String.raw`(^|[\n;])[ \t]*(import[ \t]+([\w.]+([ \t]+as[ \t]+\w+)?[ \t]*,[ \t]*)*re(?![\w.])|from[ \t]+re[ \t]+import\b)`,
+      String.raw`(^|[\n;])[ \t]*(import[ \t]+([\w.]+([ \t]+as[ \t]+\w+)?[ \t]*,[ \t]*)*re(?![\w.])|from[ \t]+re[ \t]+import\b)|\.replace\s*\(`,
       String.raw`\bopen\s*\(|\bpathlib\b`,
       `"{3}|'{3}`,
     ],
@@ -188,7 +188,7 @@ export const builtinRules: RuleFile = {
       id: 'python-edit',
       tools: ['Bash'],
       when: `cmds.exists(c, ${pythonEdits('c')})`,
-      deny: 'Use the Edit tool (with replace_all to change every occurrence) to change a file, not a Python script that rewrites it with re and a multiline string.',
+      deny: 'Use the Edit tool (with replace_all to change every occurrence) to change a file, not a Python script that rewrites it with re or .replace() and a multiline string.',
     },
     {
       // run0's graphical prompt does not show the wrapped command, so show it here first.

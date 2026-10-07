@@ -91,7 +91,7 @@
       "default": false,
       "title": "Use Edit instead of Python rewrites",
       "type": "boolean",
-      "description": "Deny python -c (or a Python heredoc) that imports re, opens a file (open() or pathlib) and has a multiline string literal; point to the Edit tool."
+      "description": "Deny python -c (or a Python heredoc) that imports re or calls .replace(), opens a file (open() or pathlib) and has a multiline string literal; point to the Edit tool."
     },
     "run0_confirm": {
       "default": false,
