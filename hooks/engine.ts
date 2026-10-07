@@ -3,7 +3,7 @@
 // can be unit tested; register.ts does the I/O.
 import { Environment } from './vendor/cel/cel.js'
 import { parseArgs, shellQuote, toSpec } from './argv.ts'
-import { analyze, type SimpleCommand } from './shell.ts'
+import { analyze, type Redirection, type SimpleCommand } from './shell.ts'
 
 // ---- The rule-file format ----
 
@@ -78,6 +78,15 @@ export class Link {
     readonly argv: string[],
   ) {}
 }
+export class Redir {
+  constructor(
+    readonly op: string,
+    readonly fd: bigint,
+    readonly target: string,
+    readonly body: string,
+    readonly quoted: boolean,
+  ) {}
+}
 export class Cmd {
   constructor(
     readonly name: string,
@@ -85,30 +94,53 @@ export class Cmd {
     readonly captured: boolean,
     readonly wrappers: string[],
     readonly chain: Link[], // each wrapper's invocation, then the command itself
+    readonly redirects: Redir[],
+    readonly stdout: string,
   ) {}
 }
 
-const toCmd = (c: SimpleCommand): Cmd =>
-  new Cmd(c.name, c.args, c.captured, c.wrappers, [
-    ...c.wrappers.map((w, i) => new Link(w, c.wrapped[i]!)),
-    new Link(c.name, [c.name, ...c.args]),
-  ])
+const toRedir = (r: Redirection) => new Redir(r.op, BigInt(r.fd), r.target, r.body, r.quoted)
+
+// Each SimpleCommand becomes one Cmd, so a command reads the same in `cmds` and `pipelines`
+const cmdOf = (memo: Map<SimpleCommand, Cmd>) => (c: SimpleCommand): Cmd => {
+  let cmd = memo.get(c)
+  if (!cmd) {
+    const chain = [...c.wrappers.map((w, i) => new Link(w, c.wrapped[i]!)), new Link(c.name, [c.name, ...c.args])]
+    memo.set(c, (cmd = new Cmd(c.name, c.args, c.captured, c.wrappers, chain, c.redirects.map(toRedir), c.stdout)))
+  }
+  return cmd
+}
 
 // ---- The environment every rule sees ----
 
 export const baseEnv = new Environment({ homogeneousAggregateLiterals: false })
   .registerType('Link', { ctor: Link, fields: { name: 'string', argv: 'list<string>' } })
+  .registerType('Redir', { ctor: Redir, fields: { op: 'string', fd: 'int', target: 'string', body: 'string', quoted: 'bool' } })
   .registerType('Cmd', {
     ctor: Cmd,
-    fields: { name: 'string', args: 'list<string>', captured: 'bool', wrappers: 'list<string>', chain: 'list<Link>' },
+    fields: {
+      name: 'string',
+      args: 'list<string>',
+      captured: 'bool',
+      wrappers: 'list<string>',
+      chain: 'list<Link>',
+      redirects: 'list<Redir>',
+      stdout: 'string',
+    },
   })
   .registerVariable('tool', 'string')
   .registerVariable('input', 'map<string, dyn>')
   .registerVariable('cmds', 'list<Cmd>')
   .registerVariable('errors', 'list<string>')
   .registerVariable('untilConds', 'list<list<Cmd>>')
+  .registerVariable('pipelines', 'list<list<Cmd>>')
   .registerFunction('list<string>.opts(map<string, dyn>): list<string>', (a: string[], s: unknown) => parseArgs(a, toSpec(s)).opts)
   .registerFunction('list<string>.operands(map<string, dyn>): list<string>', (a: string[], s: unknown) => parseArgs(a, toSpec(s)).operands)
+  .registerFunction('list<string>.optValues(map<string, dyn>, string): list<string>', (a: string[], s: unknown, name: string) =>
+    parseArgs(a, toSpec(s)).values.filter(([n]) => n === name).map(([, v]) => v),
+  )
+  .registerFunction('list<A>.take(int): list<A>', (l: unknown[], n: bigint) => l.slice(0, Math.max(0, Number(n))))
+  .registerFunction('list<A>.drop(int): list<A>', (l: unknown[], n: bigint) => l.slice(Math.max(0, Number(n))))
   .registerFunction(
     'list<string>.takeWhile(string): list<string>',
     (a: string[], re: string) => {
@@ -128,13 +160,15 @@ export const baseEnv = new Environment({ homogeneousAggregateLiterals: false })
 /** The variables a rule's expressions run against. `input` is the tool input
  *  without `tool`; with no command string there are no commands to see. */
 export function context(tool: string, input: Record<string, unknown>): Record<string, unknown> {
-  const a = typeof input.command === 'string' ? analyze(input.command) : { commands: [], errors: [], untilClauses: [] }
+  const a = typeof input.command === 'string' ? analyze(input.command) : { commands: [], errors: [], untilClauses: [], pipelines: [] }
+  const toCmd = cmdOf(new Map())
   return {
     tool,
     input,
     cmds: a.commands.map(toCmd),
     errors: a.errors,
     untilConds: a.untilClauses.map((u) => u.map(toCmd)),
+    pipelines: a.pipelines.map((p) => p.map(toCmd)),
   }
 }
 

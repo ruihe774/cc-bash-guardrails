@@ -196,21 +196,68 @@ test('templates show non-string values', async () => {
 
 test('the argument parser', () => {
   const p = (args: string[], spec: unknown) => parseArgs(args, toSpec(spec))
-  expect(p(['-u', 'root', '-f', 'x'], { short: 'u:f' })).toEqual({ opts: ['u', 'f'], operands: ['x'] })
-  expect(p(['-uroot', 'x', '-f'], { short: 'u:f' })).toEqual({ opts: ['u', 'f'], operands: ['x'] })
-  expect(p(['x', '-f'], { short: 'f', posix: true })).toEqual({ opts: [], operands: ['x', '-f'] })
-  expect(p(['--', '-f'], { short: 'f' })).toEqual({ opts: [], operands: ['-f'] })
-  expect(p(['--full=1', '--other'], { long: { full: 'f' } })).toEqual({ opts: ['f', 'other'], operands: [] })
+  expect(p(['-u', 'root', '-f', 'x'], { short: 'u:f' })).toEqual({ opts: ['u', 'f'], operands: ['x'], values: [['u', 'root']] })
+  expect(p(['-uroot', 'x', '-f'], { short: 'u:f' })).toEqual({ opts: ['u', 'f'], operands: ['x'], values: [['u', 'root']] })
+  expect(p(['x', '-f'], { short: 'f', posix: true })).toEqual({ opts: [], operands: ['x', '-f'], values: [] })
+  expect(p(['--', '-f'], { short: 'f' })).toEqual({ opts: [], operands: ['-f'], values: [] })
+  expect(p(['--full=1', '--other'], { long: { full: 'f' } })).toEqual({ opts: ['f', 'other'], operands: [], values: [['f', '1']] })
+  // A long option whose name ends in `:` takes the next argument when it has no =value
+  expect(p(['--expression', 's/a/b/', 'f', '--file=x'], { long: { expression: 'e:', file: 'f:' } })).toEqual({
+    opts: ['e', 'f'],
+    operands: ['f'],
+    values: [['e', 's/a/b/'], ['f', 'x']],
+  })
+  // `::`: an optional value, only from the same argument
+  expect(p(['-i.bak', '-i', 'f'], { short: 'i::' })).toEqual({ opts: ['i', 'i'], operands: ['f'], values: [['i', '.bak']] })
+  expect(p(['-ni', '-e', 'p'], { short: 'ni::e:' })).toEqual({ opts: ['n', 'i', 'e'], operands: [], values: [['e', 'p']] })
   // shortTakesValue: the value only ever comes from the same argument
-  expect(p(['-u', '-f'], { short: 'u', shortTakesValue: true })).toEqual({ opts: ['u', 'f'], operands: [] })
-  expect(p(['-uf'], { short: 'u', shortTakesValue: true })).toEqual({ opts: ['u'], operands: [] })
+  expect(p(['-u', '-f'], { short: 'u', shortTakesValue: true })).toEqual({ opts: ['u', 'f'], operands: [], values: [] })
+  expect(p(['-uf'], { short: 'u', shortTakesValue: true })).toEqual({ opts: ['u'], operands: [], values: [['u', 'f']] })
   // find-style words, with an arity, a pattern or terminators
   const find = { words: { '-name': 1, '-exec': [';', '+'] }, wordPatterns: { '^-newer..$': 1 } }
   expect(p(['.', '-name', '-xdev', '-neweram', '-x', '-exec', 'a', '-xdev', ';', '-print'], find)).toEqual({
     opts: ['-name', '-neweram', '-exec', '-print'],
     operands: ['.'],
+    values: [],
   })
   expect(() => toSpec({ words: { '-x': 'one' } })).toThrow('words must map')
   expect(() => toSpec({ wordPatterns: { '(': 1 } })).toThrow()
   expect(() => toSpec(['x'])).toThrow('must be a map')
+})
+
+test('rules see redirects, where stdout goes, and pipelines', async () => {
+  const { rules, problems } = custom({
+    rules: [
+      { id: 'redirs', when: "cmds.exists(c, c.name == 'r')", deny: "{{ cmds.filter(c, c.name == 'r').map(c, c.redirects.map(r, [r.op, r.fd, r.target, r.body, r.quoted])) }}" },
+      { id: 'stdout', when: "cmds.exists(c, c.name == 'o')", deny: "{{ cmds.filter(c, c.name == 'o').map(c, c.stdout) }}" },
+      { id: 'pipes', when: 'size(pipelines) > 0', deny: '{{ pipelines.map(p, p.map(c, c.name)) }}' },
+      { id: 'take-drop', when: "cmds.exists(c, c.name == 't')", deny: "{{ cmds[0].args.take(2) }} {{ cmds[0].args.drop(2) }} {{ cmds[0].args.drop(9) }}" },
+      { id: 'values', when: "cmds.exists(c, c.name == 'v')", deny: "{{ cmds[0].args.optValues({'short': 'e:x'}, 'e') }}" },
+    ],
+  })
+  expect(problems).toEqual([])
+  expect(await run(rules, "r <<'EOF' 2>/dev/null\nhi $x\nEOF")).toBe('[[["<<",-1,"EOF","hi $x\\n",true],[">",2,"/dev/null","",false]]]')
+  expect(await run(rules, 'r <<< "a b"')).toBe('[[["<<<",-1,"a b","a b\\n",false]]]')
+  // An enclosing compound's redirects come after the command's own
+  expect(await run(rules, '{ r < in; } > out')).toBe('[[["<",-1,"in","",false],[">",-1,"out","",false]]]')
+  // The last redirect of stdout wins; then the innermost enclosing one; then the shell's around bash -c
+  for (const [c, out] of [
+    ['o', '[""]'],
+    ['o > a >> b', '["b"]'],
+    ['o 2> a', '[""]'],
+    ['o &> a', '["a"]'],
+    ['o >&2', '["&2"]'],
+    ['o 1> a 2>&1', '["a"]'],
+    ['{ o; } > a', '["a"]'],
+    ['{ { o; } > a; } > b', '["a"]'],
+    ['{ o > c; } > a', '["c"]'],
+    ['for i in 1; do o; done > a', '["a"]'],
+    ['bash -c "o" > a', '["a"]'],
+    ['{ echo $(o); } > a', '[""]'],
+  ])
+    expect(await run(rules, c)).toBe(out)
+  expect(await run(rules, 'a | b; c | { d; } | e |& f')).toBe('[["a","b"],["c","","e","f"]]')
+  expect(await run(rules, 'bash -c "a | b"')).toBe('[["a","b"]]')
+  expect(await run(rules, 't 1 2 3')).toBe('["1","2"] ["3"] []')
+  expect(await run(rules, 'v -x -e a -eb c')).toBe('["a","b"]')
 })

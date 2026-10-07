@@ -4,12 +4,14 @@
 
 export interface ArgSpec {
   // getopt-style short options. Without shortTakesValue, a letter followed by
-  // `:` takes a value, from the rest of the argument or else the next one
+  // `:` takes a value, from the rest of the argument or else the next one; one
+  // followed by `::` takes an optional value, only from the rest of the argument
   short?: string
   // Every letter in `short` takes a value, and only from the rest of the same
   // argument, never the next one (pgrep's `-u -f` keeps -f an option)
   shortTakesValue?: boolean
-  // --name and --name=value; maps a long name to the name reported for it (`full` -> `f`)
+  // --name and --name=value; maps a long name to the name reported for it (`full` -> `f`).
+  // A reported name ending in `:` takes a value, from `=value` or else the next argument
   long?: Record<string, string>
   // find-style single-dash words. A number is how many arguments follow; a list
   // of strings ends the word at the first argument that equals one (`-exec ... ;`)
@@ -23,6 +25,7 @@ export interface ArgSpec {
 export interface ParsedArgs {
   opts: string[]
   operands: string[]
+  values: [string, string][] // each option given a value, with that value, in order
 }
 
 const SPEC_KEYS = new Set(['short', 'shortTakesValue', 'long', 'words', 'wordPatterns', 'posix'])
@@ -67,8 +70,15 @@ export function toSpec(raw: unknown): ArgSpec {
 export function parseArgs(args: readonly string[], spec: ArgSpec): ParsedArgs {
   const opts: string[] = []
   const operands: string[] = []
+  const values: [string, string][] = []
   const short = spec.short ?? ''
-  const takesValue = (ch: string) => (spec.shortTakesValue ? short.includes(ch) : short.includes(ch + ':'))
+  // 0: no value, 1: a value, 2: an optional value from the same argument
+  const valueKind = (ch: string) => {
+    const i = short.indexOf(ch)
+    if (i < 0 || ch === ':') return 0
+    if (spec.shortTakesValue) return 1
+    return short[i + 1] !== ':' ? 0 : short[i + 2] === ':' ? 2 : 1
+  }
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!
     if (a === '--' && !spec.words) {
@@ -87,18 +97,24 @@ export function parseArgs(args: readonly string[], spec: ArgSpec): ParsedArgs {
       continue
     }
     if (a.startsWith('--') && a.length > 2 && spec.long) {
-      const name = a.slice(2).split('=')[0]!
-      opts.push(spec.long[name] ?? name)
+      const eq = a.indexOf('=')
+      const name = eq < 0 ? a.slice(2) : a.slice(2, eq)
+      const mapped = spec.long[name] ?? name
+      const reported = mapped.endsWith(':') ? mapped.slice(0, -1) : mapped
+      opts.push(reported)
+      if (eq >= 0) values.push([reported, a.slice(eq + 1)])
+      else if (mapped.endsWith(':') && i + 1 < args.length) values.push([reported, args[++i]!])
       continue
     }
     if (/^-[^-]/.test(a) && !spec.words) {
       for (let j = 1; j < a.length; j++) {
         const ch = a[j]!
         opts.push(ch)
-        if (takesValue(ch)) {
-          if (j === a.length - 1 && !spec.shortTakesValue) i++
-          break
-        }
+        const n = valueKind(ch)
+        if (!n) continue
+        if (j < a.length - 1) values.push([ch, a.slice(j + 1)])
+        else if (n === 1 && !spec.shortTakesValue && i + 1 < args.length) values.push([ch, args[++i]!])
+        break
       }
       continue
     }
@@ -108,7 +124,7 @@ export function parseArgs(args: readonly string[], spec: ArgSpec): ParsedArgs {
       break
     }
   }
-  return { opts, operands }
+  return { opts, operands, values }
 }
 
 // Quote a word the way a shell would need it, so a displayed command is unambiguous

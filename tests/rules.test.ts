@@ -185,6 +185,177 @@ test('substitutions in every syntax position are seen', async () => {
     expect(await deny(c)).toContain('find rooted at /')
 })
 
+test('cat that only shows a file is denied in favour of Read', async () => {
+  for (const c of [
+    'cat f',
+    'cat -n a b',
+    'cat --number f',
+    'cat < f',
+    'ls; cat "my file"',
+    'cat f && echo done',
+    'cat f 2>/dev/null',
+    'bash -c "cat f"',
+    'cat f | head -n 5',
+    'cat f | head -20',
+    'cat -n f | tail --lines=20',
+    'cat f | head -n 50 | tail -n 10',
+    "cat f | sed -n '3,5p'",
+    "cat f | awk 'NR>=3 && NR<=5'",
+  ])
+    expect(await deny(c)).toContain('Use the Read tool to view a file')
+  for (const c of [
+    'cat f | grep x',
+    'cat f | head | wc -l',
+    'cat f > g',
+    'cat a b >> g',
+    '{ cat f; } > g',
+    'bash -c "cat f" > g',
+    'x=$(cat f)',
+    'diff <(cat a) b',
+    'cat -A f',
+    'cat -v f | head',
+    'cat',
+    'cat -',
+    'echo hi | cat',
+    'cat /proc/cpuinfo',
+    'cat /dev/null',
+    'cat < /dev/stdin',
+    'cat f | head -c 5',
+    'cat f | tail -f',
+    'cat f | head > g',
+    "cat f | sed 's/a/b/'",
+    'echo cat f',
+  ])
+    expect(await deny(c)).toBe(null)
+  // Only the Bash tool: Monitor streams commands
+  expect(await firstDenial('Monitor', { command: 'cat f' }, { ...ALL, monitor_disabled: false })).toBe(null)
+})
+
+test('head, sed and awk picking lines of a file are denied in favour of Read', async () => {
+  for (const c of [
+    'head f',
+    'head -n 5 f',
+    'head -5 a b',
+    "sed -n '10,20p' f",
+    'sed -n 10p f',
+    "sed -n '10,$p' f",
+    "sed -n '10,+5p;16q' f",
+    "sed --quiet -e '5p' f",
+    "sed '5q' f",
+    "sed '10,20!d' f",
+    "awk 'NR>=10 && NR<=20' f",
+    "awk 'NR==3{print;exit}' f",
+    "awk 'NR==3,NR==7 { print $0 }' f",
+    "gawk -F: 'FNR<5' f",
+  ])
+    expect(await deny(c)).toContain('Use the Read tool with offset and limit')
+  for (const c of [
+    'tail -n 5 f',
+    'head -c 10 f',
+    'head',
+    'head -n 5 /dev/urandom',
+    "sed -n '/x/p' f",
+    "sed -n '10,20p'",
+    "sed 's/a/b/' f",
+    "sed -n -f script f",
+    "sed -n '10,20p' f > g",
+    "awk '{print $1}' f",
+    "awk 'NR>1' n=1",
+    "awk -f prog.awk f",
+    "x=$(sed -n 5p f)",
+    'ls | head -n 5',
+  ])
+    expect(await deny(c)).toBe(null)
+})
+
+test('a heredoc written to a file is denied in favour of Write', async () => {
+  for (const c of [
+    'cat <<EOF > f\nhi\nEOF',
+    "cat > f <<'EOF'\n$x\nEOF",
+    "cat >> f <<-'EOF'\n\thi\n\tEOF",
+    'cat - <<EOF >| f\nhi\nEOF',
+    'cat <<< "hi" > f',
+    'cat <<EOF | tee f\nhi\nEOF',
+    'cat <<EOF | tee -a f > /dev/null\nhi\nEOF',
+    'tee f <<EOF\nhi\nEOF',
+    'tee -a f <<< hi',
+    '{ cat <<EOF; } > f\nhi\nEOF',
+    'bash -c "cat <<EOF > f\nhi\nEOF"',
+  ])
+    expect(await deny(c)).toContain('Use the Write tool')
+  for (const c of [
+    'cat <<EOF\nhi\nEOF',
+    'cat <<EOF > f\n$HOME\nEOF',
+    'cat <<EOF > f\n$(date)\nEOF',
+    'cat <<EOF >&2\nhi\nEOF',
+    'cat <<EOF > /dev/stderr\nhi\nEOF',
+    'cat <<EOF | python3\nhi\nEOF',
+    'cat <<EOF | tee\nhi\nEOF',
+    'cat a <<EOF > f\nhi\nEOF',
+    'echo hi | tee f',
+    'python3 - <<EOF > f\nprint(1)\nEOF',
+  ])
+    expect(await deny(c)).toBe(null)
+})
+
+test('sed -i without g on one file is denied in favour of Edit', async () => {
+  for (const c of [
+    "sed -i 's/a/b/' f",
+    "sed -i 's|a/x|b|2' f",
+    "sed -i '3s/a/b/;5s/c/d/' f",
+    "sed -i 's/a\\/x/b/' f",
+    "sed -i.bak -e 's|a|b|' -e '3d' f",
+    "sed --in-place=.orig --expression 's/a/b/' f",
+    "sed -E -i 's/(a)/\\1b/' f",
+    "sed -i '' 's/a/b/' f",
+    "sed -i '10,12d' f",
+    "env LC_ALL=C sed -i 's/a/b/' f",
+  ])
+    expect(await deny(c)).toContain('Use the Edit tool to change a file, not sed -i')
+  for (const c of [
+    "sed -i 's/a/b/g' f",
+    "sed -i 's/a/b/' f g",
+    "sed -i 's/a/b/' *.txt x",
+    "sed -i -e 's/a/b/' -e 's/c/d/g' f",
+    "sed -i '/x/d' f",
+    "sed -i '/x/s/a/b/' f",
+    "sed -i 'd' f",
+    "sed -i -f script f",
+    "sed -n -i 's/a/b/p' f",
+    "sed 's/a/b/' f",
+    "sed -i 'y/abc/xyz/' f",
+  ])
+    expect(await deny(c)).toBe(null)
+})
+
+test('a Python file rewrite with re and a multiline string is denied in favour of Edit', async () => {
+  const script = "import re\nfrom pathlib import Path\np = Path('f')\np.write_text(re.sub(r'''a\nb''', 'c', p.read_text()))"
+  for (const c of [
+    `python3 -c "${script}"`,
+    `python -c "${script}"`,
+    `python3.12 -I -c "${script}"`,
+    `python3 - <<'EOF'\n${script}\nEOF`,
+    `python3 <<'EOF'\n${script}\nEOF`,
+    `python3 -c "import os, re; s = open('f').read(); open('f', 'w').write(s.replace(\\"\\"\\"x\\"\\"\\", 'y'))"`,
+    `python3 -c "from re import sub\nwith open('f') as fh: s = fh.read()\ns = sub('''a''', 'b', s)"`,
+  ])
+    expect(await deny(c)).toContain('not a Python script')
+  for (const c of [
+    // Each condition alone or in pairs is not enough
+    `python3 -c "import re; print(open('f').read())"`,
+    `python3 -c "import re; print('''x''')"`,
+    `python3 -c "print(open('f').read().replace('''a''', 'b'))"`,
+    `python3 -c "import regex; print(open('f').read(), '''x''')"`,
+    `python3 -c "import are; print(open('f').read(), '''x''')"`,
+    // The script is a file, a module, or something other than python
+    `python3 edit.py - <<'EOF'\n${script}\nEOF`,
+    `python3 -m re "'''x''' open("`,
+    `node -e "${script}"`,
+    `echo "${script}"`,
+  ])
+    expect(await deny(c)).toBe(null)
+})
+
 test('find -- and /* count as rooted at /', async () => {
   for (const c of ['find -- / -name x', 'find /* -name x', 'find -L -- // x']) expect(await deny(c)).toContain('find rooted at /')
   for (const c of ['find -- /tmp -xdev -name x', 'find /tmp/* -xdev -name x']) expect(await deny(c)).toBe(null)
