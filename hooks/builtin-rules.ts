@@ -94,10 +94,12 @@ export const builtinRules: RuleFile = {
     // Options stop at the first operand: the script file, or - for stdin
     PYTHON: { short: 'bBdEhiIOPqsSuvVxc:m:W:X:', posix: true },
     // A Python script that edits a file: it imports re or calls .replace(), opens a file
-    // (open() or pathlib) and has a multiline (triple-quoted) string literal. It must match all three.
+    // (open() or pathlib), writes (.write(), .write_text(), .write_bytes() or .writelines()) and has a
+    // multiline (triple-quoted) string literal. It must match all four.
     PY_EDIT: [
       String.raw`(^|[\n;])[ \t]*(import[ \t]+([\w.]+([ \t]+as[ \t]+\w+)?[ \t]*,[ \t]*)*re(?![\w.])|from[ \t]+re[ \t]+import\b)|\.replace\s*\(`,
       String.raw`\bopen\s*\(|\bpathlib\b`,
+      String.raw`\.write(_text|_bytes|lines)?\s*\(`,
       `"{3}|'{3}`,
     ],
   },

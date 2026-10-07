@@ -337,20 +337,22 @@ test('a Python file rewrite with re or .replace() and a multiline string is deni
     `python3 - <<'EOF'\n${script}\nEOF`,
     `python3 <<'EOF'\n${script}\nEOF`,
     `python3 -c "import os, re; s = open('f').read(); open('f', 'w').write(s.replace(\\"\\"\\"x\\"\\"\\", 'y'))"`,
-    `python3 -c "from re import sub\nwith open('f') as fh: s = fh.read()\ns = sub('''a''', 'b', s)"`,
+    `python3 -c "from re import sub\nwith open('f') as fh: s = fh.read()\ns = sub('''a''', 'b', s)\nwith open('f', 'w') as fh: fh.write(s)"`,
     // .replace() instead of re
-    `python3 -c "print(open('f').read().replace('''a''', 'b'))"`,
+    `python3 -c "open('f', 'w').write(open('f').read().replace('''a''', 'b'))"`,
     `python3 - <<'EOF'\nfrom pathlib import Path\np = Path('f')\np.write_text(p.read_text().replace(\"\"\"a\nb\"\"\", \"\"\"c\"\"\"))\nEOF`,
     `python3 <<'EOF'\nwith open('f') as fh:\n    s = fh.read()\ns = s.replace('''old\ntext''', '''new''')\nwith open('f', 'w') as fh:\n    fh.write(s)\nEOF`,
   ])
     expect(await deny(c)).toContain('not a Python script')
   for (const c of [
-    // Each condition alone or in pairs is not enough
+    // Each condition alone or in groups is not enough (a read-only script has no write)
     `python3 -c "import re; print(open('f').read())"`,
     `python3 -c "import re; print('''x''')"`,
     `python3 -c "print(open('f').read().replace('a', 'b'))"`,
     `python3 -c "print('''a b'''.replace('a', 'b'))"`,
     `python3 -c "print(open('f').read().replaced, '''x''')"`,
+    `python3 -c "print(open('f').read().replace('''a''', 'b'))"`,
+    `python3 -c "from re import sub\nwith open('f') as fh: s = fh.read()\nprint(sub('''a''', 'b', s))"`,
     `python3 -c "import regex; print(open('f').read(), '''x''')"`,
     `python3 -c "import are; print(open('f').read(), '''x''')"`,
     // The script is a file, a module, or something other than python
