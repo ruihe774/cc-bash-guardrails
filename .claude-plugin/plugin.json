@@ -3,7 +3,7 @@
     "email": "ruihe774@outlook.com",
     "name": "Rui He"
   },
-  "description": "Tool-call guard rules (parser-based). On by default: blocks malformed bash and find rooted at /. Opt-in: Monitor, find without -xdev, pgrep/pkill pitfalls, until-grep loops, sudo, run0 confirmation",
+  "description": "Tool-call guard rules (parser-based), written in CEL; add your own in ~/.claude/bash-guardrails.json or .claude/bash-guardrails.json. On by default: blocks malformed bash and find rooted at /. Opt-in: Monitor, find without -xdev, pgrep/pkill pitfalls, until-grep loops, sudo, run0 confirmation, and pointing cat/head/sed/awk, heredoc writes, sed -i and Python rewrites to the Read, Write and Edit tools",
   "displayName": "bash-guardrails",
   "homepage": "https://github.com/ruihe774/cc-bash-guardrails",
   "keywords": [
@@ -13,16 +13,26 @@
     "hooks",
     "mod",
     "tool-call",
+    "cel",
     "shell",
     "find",
     "pgrep",
     "sudo",
-    "run0"
+    "run0",
+    "cat",
+    "sed",
+    "heredoc"
   ],
-  "license": "Unlicense AND ISC",
+  "license": "Unlicense AND ISC AND MIT",
   "name": "bash-guardrails",
   "repository": "https://github.com/ruihe774/cc-bash-guardrails",
   "userConfig": {
+    "cat_read": {
+      "default": false,
+      "title": "Use Read instead of cat",
+      "type": "boolean",
+      "description": "Deny cat whose output is shown rather than used (cat f, cat < f), alone or piped into head, tail, sed -n 'X,Yp' or awk 'NR...' line pickers; point to the Read tool."
+    },
     "find_root": {
       "default": true,
       "description": "Deny find commands whose starting point is the filesystem root, even with -xdev.",
@@ -35,6 +45,18 @@
       "title": "Require find -xdev",
       "type": "boolean"
     },
+    "heredoc_write": {
+      "default": false,
+      "title": "Use Write instead of heredocs",
+      "type": "boolean",
+      "description": "Deny writing a fixed heredoc or here-string to a file with cat (cat <<EOF > f) or tee; point to the Write tool."
+    },
+    "line_range_read": {
+      "default": false,
+      "title": "Use Read instead of head/sed/awk",
+      "type": "boolean",
+      "description": "Deny head, sed -n 'X,Yp' (or 'X,Y!d', 'Nq') and awk 'NR>=X && NR<=Y' showing lines of a file; point to the Read tool with offset and limit."
+    },
     "malformed_bash": {
       "default": true,
       "description": "Deny Bash commands that fail to parse. Other Bash rules, including the run0 confirmation, rely on the parse, so disabling this weakens them.",
@@ -45,6 +67,12 @@
       "default": false,
       "description": "Deny the Monitor tool and point to background Bash.",
       "title": "Block Monitor tool",
+      "type": "boolean"
+    },
+    "monitor_no_command": {
+      "default": true,
+      "description": "Deny Monitor calls that have neither a command string the shell rules can check nor a ws source.",
+      "title": "Block Monitor without a command",
       "type": "boolean"
     },
     "pgrep_captured": {
@@ -59,11 +87,23 @@
       "title": "Require pgrep -a with -f; block pkill -f",
       "type": "boolean"
     },
+    "python_edit": {
+      "default": false,
+      "title": "Use Edit instead of Python rewrites",
+      "type": "boolean",
+      "description": "Deny python -c (or a Python heredoc) that imports re or calls .replace(), opens a file (open() or pathlib) and has a multiline string literal; point to the Edit tool."
+    },
     "run0_confirm": {
       "default": false,
       "description": "Ask the user, showing the wrapped command, before any run0 invocation.",
       "title": "Confirm run0",
       "type": "boolean"
+    },
+    "sed_edit": {
+      "default": false,
+      "title": "Use Edit instead of sed -i",
+      "type": "boolean",
+      "description": "Deny sed -i on a single file when its script is only substitutions without g (and line deletions); point to the Edit tool."
     },
     "sudo": {
       "default": false,
@@ -78,5 +118,5 @@
       "type": "boolean"
     }
   },
-  "version": "0.1.1"
+  "version": "0.2.0"
 }

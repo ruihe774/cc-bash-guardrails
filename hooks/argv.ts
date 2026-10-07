@@ -1,0 +1,131 @@
+// A spec-driven argument parser, the one stateful scan the CEL rules can't express
+// themselves. The domain knowledge (which options take a value) lives in the
+// rule file's defs; this only knows the common syntaxes.
+
+export interface ArgSpec {
+  // getopt-style short options. Without shortTakesValue, a letter followed by
+  // `:` takes a value, from the rest of the argument or else the next one; one
+  // followed by `::` takes an optional value, only from the rest of the argument
+  short?: string
+  // Every letter in `short` takes a value, and only from the rest of the same
+  // argument, never the next one (pgrep's `-u -f` keeps -f an option)
+  shortTakesValue?: boolean
+  // --name and --name=value; maps a long name to the name reported for it (`full` -> `f`).
+  // A reported name ending in `:` takes a value, from `=value` or else the next argument
+  long?: Record<string, string>
+  // find-style single-dash words. A number is how many arguments follow; a list
+  // of strings ends the word at the first argument that equals one (`-exec ... ;`)
+  words?: Record<string, number | string[]>
+  // Like `words`, keyed by a regex the whole word must match
+  wordPatterns?: Record<string, number>
+  // Stop at the first operand: everything after it is an operand too
+  posix?: boolean
+}
+
+export interface ParsedArgs {
+  opts: string[]
+  operands: string[]
+  values: [string, string][] // each option given a value, with that value, in order
+}
+
+const SPEC_KEYS = new Set(['short', 'shortTakesValue', 'long', 'words', 'wordPatterns', 'posix'])
+
+// CEL hands over maps (possibly as Map) and ints as bigint; turn them into plain JS
+function plain(v: unknown): unknown {
+  if (v instanceof Map) return Object.fromEntries([...v].map(([k, x]) => [k, plain(x)]))
+  if (Array.isArray(v)) return v.map(plain)
+  if (typeof v === 'bigint') return Number(v)
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, plain(x)]))
+  return v
+}
+
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
+
+/** Checks a spec's shape, so a typo in a rule file fails loudly instead of parsing wrong. */
+export function toSpec(raw: unknown): ArgSpec {
+  const s = plain(raw)
+  if (!isRecord(s)) throw new Error('argument spec must be a map')
+  for (const k of Object.keys(s)) if (!SPEC_KEYS.has(k)) throw new Error(`argument spec: unknown key "${k}"`)
+  if (s.short !== undefined && typeof s.short !== 'string') throw new Error('argument spec: short must be a string')
+  for (const k of ['shortTakesValue', 'posix'])
+    if (s[k] !== undefined && typeof s[k] !== 'boolean') throw new Error(`argument spec: ${k} must be a bool`)
+  if (s.long !== undefined && !(isRecord(s.long) && Object.values(s.long).every((v) => typeof v === 'string')))
+    throw new Error('argument spec: long must map names to strings')
+  if (
+    s.words !== undefined &&
+    !(isRecord(s.words) &&
+      Object.values(s.words).every(
+        (v) => (typeof v === 'number' && Number.isInteger(v) && v >= 0) || (Array.isArray(v) && v.every((x) => typeof x === 'string')),
+      ))
+  )
+    throw new Error('argument spec: words must map words to a count or a list of terminators')
+  if (s.wordPatterns !== undefined) {
+    if (!(isRecord(s.wordPatterns) && Object.values(s.wordPatterns).every((v) => typeof v === 'number' && Number.isInteger(v) && v >= 0)))
+      throw new Error('argument spec: wordPatterns must map regexes to a count')
+    for (const re of Object.keys(s.wordPatterns)) new RegExp(re)
+  }
+  return s as ArgSpec
+}
+
+export function parseArgs(args: readonly string[], spec: ArgSpec): ParsedArgs {
+  const opts: string[] = []
+  const operands: string[] = []
+  const values: [string, string][] = []
+  const short = spec.short ?? ''
+  // 0: no value, 1: a value, 2: an optional value from the same argument
+  const valueKind = (ch: string) => {
+    const i = short.indexOf(ch)
+    if (i < 0 || ch === ':') return 0
+    if (spec.shortTakesValue) return 1
+    return short[i + 1] !== ':' ? 0 : short[i + 2] === ':' ? 2 : 1
+  }
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!
+    if (a === '--' && !spec.words) {
+      operands.push(...args.slice(i + 1))
+      break
+    }
+    if (spec.words && a.startsWith('-') && a.length > 1) {
+      let arity = spec.words[a]
+      if (arity === undefined)
+        for (const [re, n] of Object.entries(spec.wordPatterns ?? {})) if (new RegExp(re).test(a)) arity = n
+      opts.push(a)
+      if (Array.isArray(arity)) {
+        // The embedded command runs up to a terminator
+        while (i + 1 < args.length && !arity.includes(args[i]!)) i++
+      } else i += arity ?? 0
+      continue
+    }
+    if (a.startsWith('--') && a.length > 2 && spec.long) {
+      const eq = a.indexOf('=')
+      const name = eq < 0 ? a.slice(2) : a.slice(2, eq)
+      const mapped = spec.long[name] ?? name
+      const reported = mapped.endsWith(':') ? mapped.slice(0, -1) : mapped
+      opts.push(reported)
+      if (eq >= 0) values.push([reported, a.slice(eq + 1)])
+      else if (mapped.endsWith(':') && i + 1 < args.length) values.push([reported, args[++i]!])
+      continue
+    }
+    if (/^-[^-]/.test(a) && !spec.words) {
+      for (let j = 1; j < a.length; j++) {
+        const ch = a[j]!
+        opts.push(ch)
+        const n = valueKind(ch)
+        if (!n) continue
+        if (j < a.length - 1) values.push([ch, a.slice(j + 1)])
+        else if (n === 1 && !spec.shortTakesValue && i + 1 < args.length) values.push([ch, args[++i]!])
+        break
+      }
+      continue
+    }
+    operands.push(a)
+    if (spec.posix) {
+      operands.push(...args.slice(i + 1))
+      break
+    }
+  }
+  return { opts, operands, values }
+}
+
+// Quote a word the way a shell would need it, so a displayed command is unambiguous
+export const shellQuote = (w: string) => (/^[\w@%+=:,./-]+$/.test(w) ? w : `'${w.replace(/'/g, `'\\''`)}'`)

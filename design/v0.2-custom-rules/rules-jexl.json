@@ -1,0 +1,89 @@
+{
+  "defs": {
+    "FIND_LEAD": { "short": "HLPD:O:", "posix": true },
+    "FIND_EXPR": {
+      "words": {
+        "-D": 1,
+        "-name": 1, "-iname": 1, "-path": 1, "-ipath": 1, "-wholename": 1, "-iwholename": 1, "-regex": 1, "-iregex": 1,
+        "-lname": 1, "-ilname": 1, "-type": 1, "-xtype": 1, "-user": 1, "-group": 1, "-perm": 1, "-size": 1,
+        "-newer": 1, "-anewer": 1, "-cnewer": 1, "-samefile": 1, "-mtime": 1, "-atime": 1, "-ctime": 1, "-mmin": 1,
+        "-amin": 1, "-cmin": 1, "-links": 1, "-inum": 1, "-uid": 1, "-gid": 1, "-used": 1, "-fstype": 1, "-printf": 1,
+        "-fprintf": 1, "-fprint": 1, "-fprint0": 1, "-fls": 1, "-context": 1, "-maxdepth": 1, "-mindepth": 1, "-newerXY": 1,
+        "-exec": [";", "+"], "-execdir": [";", "+"], "-ok": [";", "+"], "-okdir": [";", "+"]
+      },
+      "wordPatterns": { "^-newer[aBcmt][aBcmt]$": 1 }
+    },
+    "PGREP": { "short": "dFgGJOPrstTuU", "shortTakesValue": true, "long": { "full": "f", "list-full": "a" } },
+    "GREPS": ["grep", "egrep", "fgrep", "rg"]
+  },
+  "rules": [
+    {
+      "id": "monitor-disabled",
+      "tools": ["Monitor"],
+      "when": "true",
+      "deny": "Monitor is disabled. Use Bash with run_in_background to spawn a blocking waiter that exits on the next event."
+    },
+    {
+      "id": "monitor-no-command",
+      "tools": ["Monitor"],
+      "when": "input.command|type != 'string' && input.ws == null",
+      "deny": "Monitor call has no command string that the Bash guard rules can check; refusing it rather than running it unchecked."
+    },
+    {
+      "id": "malformed-bash",
+      "tools": ["Bash", "Monitor"],
+      "when": "errors|any",
+      "deny": "Malformed bash command ({{ errors[0] }}). Fix the syntax and retry."
+    },
+    {
+      "id": "find-root",
+      "tools": ["Bash", "Monitor"],
+      "when": "cmds[.name == 'find' && .args|operands(defs.FIND_LEAD)|takeWhile('^(?!-|[(!]$)')|some('^/+(\\./?)*\\*?$')]|any",
+      "deny": "find rooted at / is disabled. Scan a specific directory instead."
+    },
+    {
+      "id": "find-xdev",
+      "tools": ["Bash", "Monitor"],
+      "when": "cmds[.name == 'find' && !('-xdev' in .args|opts(defs.FIND_EXPR) || '-mount' in .args|opts(defs.FIND_EXPR))]|any",
+      "deny": "find must specify -xdev so it does not cross filesystem boundaries. To search several filesystems, issue a separate find -xdev per filesystem."
+    },
+    {
+      "id": "pgrep-f",
+      "tools": ["Bash", "Monitor"],
+      "when": "cmds[.name == 'pkill' && 'f' in .args|opts(defs.PGREP)]|any || cmds[.name == 'pgrep' && 'f' in .args|opts(defs.PGREP) && !('a' in .args|opts(defs.PGREP))]|any",
+      "deny": "pgrep -f and pkill -f can match helper processes spawned by the harness (e.g. its bash -c wrapper), and pkill would kill them. Use pgrep -af, confirm each match cmdline, then kill by PID."
+    },
+    {
+      "id": "pgrep-captured",
+      "tools": ["Bash", "Monitor"],
+      "when": "cmds[.name == 'pgrep' && .captured]|any",
+      "deny": "Do not capture pgrep output in a pipe or substitution ($(...), `...`, <(...)). Let pgrep print straight to stdout and read the result."
+    },
+    {
+      "id": "until-grep",
+      "tools": ["Bash", "Monitor"],
+      "when": "untilConds|flatten[.name in defs.GREPS]|any",
+      "deny": "An \"until grep ...\" (or \"while ! grep ...\") loop never exits if the process writing the log silently dies. Watch the process instead: tail -f --pid=<PID> <log> | grep -m1 <pattern> (tail stops when the process exits, ending the pipeline either way). Run it with run_in_background."
+    },
+    {
+      "id": "sudo",
+      "tools": ["Bash", "Monitor"],
+      "when": "cmds|pluck('chain')|flatten[.name == 'sudo']|any",
+      "deny": "sudo is disabled: passwordless sudo is insecure, and a password prompt needs a TTY, which Bash processes spawned by Claude Code do not have. Use run0 instead, which shows the user a graphical auth prompt every time and does not cache authentication."
+    },
+    {
+      "id": "run0-confirm",
+      "tools": ["Bash", "Monitor"],
+      "let": { "items": "cmds|pluck('chain')|flatten[.name == 'run0']|pluck('argv')|shjoin|unique" },
+      "when": "items|any",
+      "ask": {
+        "header": "run0",
+        "question": "Allow Claude to run with elevated privileges via run0?\n\n{{ items|indent('  ')|join('\n') }}\n\nFull {{ tool }} command:\n{{ input.command }}\n\nAllow?",
+        "options": ["Allow", "Deny"],
+        "allowIf": "answer == 'Allow'",
+        "declined": "The user declined run0{{ answer == 'Deny' ? '' : ': ' + answer }}. Do not retry without asking.",
+        "dismissed": "run0 was not approved: the confirmation was dismissed or no one could be asked."
+      }
+    }
+  ]
+}
