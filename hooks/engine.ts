@@ -74,8 +74,8 @@ export interface CompiledFile {
 // Classes, not plain objects: cel-js checks a registered type's values by constructor
 // (Fields spelled out rather than as parameter properties, so plain type stripping can load this file.)
 export class Link {
-  readonly name: string
-  readonly argv: string[]
+  readonly name: string // the program's basename: match on this
+  readonly argv: string[] // verbatim, program path included
   constructor(name: string, argv: string[]) {
     this.name = name
     this.argv = argv
@@ -120,7 +120,7 @@ const toRedir = (r: Redirection) => new Redir(r.op, BigInt(r.fd), r.target, r.bo
 const cmdOf = (memo: Map<SimpleCommand, Cmd>) => (c: SimpleCommand): Cmd => {
   let cmd = memo.get(c)
   if (!cmd) {
-    const chain = [...c.wrappers.map((w, i) => new Link(w, c.wrapped[i]!)), new Link(c.name, [c.name, ...c.args])]
+    const chain = [...c.wrappers.map((w, i) => new Link(w, c.wrapped[i]!)), new Link(c.name, [c.prog, ...c.args])]
     memo.set(c, (cmd = new Cmd(c.name, c.args, c.captured, c.wrappers, chain, c.redirects.map(toRedir), c.stdout)))
   }
   return cmd

@@ -61,6 +61,12 @@ test('rules see the tool and the raw input', async () => {
   // Registered types can be indexed, not just iterated
   const idx = custom({ rules: [{ id: 'idx', when: "size(untilConds) > 0 && untilConds[0][0].chain[0].argv[0] == 'sudo'", deny: 'x' }] })
   expect(await run(idx.rules, 'until sudo grep -q x f; do sleep 1; done')).toBe('x')
+  // A link's name is the basename; its argv is verbatim, wrapper or not
+  const links = custom({
+    rules: [{ id: 'links', let: { ls: "cmds.map(c, c.chain.map(l, l.name + ': ' + shquote(l.argv))).flatten()" }, when: 'true', deny: "{{ ls.join(' | ') }}" }],
+  })
+  expect(await run(links.rules, '/usr/bin/sudo -u root /bin/rm -rf x')).toBe('sudo: /usr/bin/sudo -u root /bin/rm -rf x | rm: /bin/rm -rf x')
+  expect(await run(links.rules, './run0')).toBe('run0: ./run0')
   // tools limits where it runs
   expect(await decide(rules, 'Monitor', { command: 'sleep 5', run_in_background: true }, all, noAsk)).toBeNull()
 })

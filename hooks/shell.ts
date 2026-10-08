@@ -5,6 +5,7 @@ import { parse } from './vendor/unbash/parser.js'
 
 export interface SimpleCommand {
   name: string // basename of the program, wrappers (sudo, env, ...) removed
+  prog: string // the program as written, path included (`/bin/ls`)
   args: string[] // its arguments, quotes removed
   wrappers: string[] // wrappers removed from in front of it (and of a shell running it), outermost first
   wrapped: string[][] // per wrapper, parallel to `wrappers`: that wrapper's whole invocation, options and wrapped command included
@@ -204,11 +205,12 @@ export function analyze(source: string, depth = 0): Analysis {
         if (!last || !call) return
         words = call
       }
-      const name = basename(words[0]!)
+      const prog = words[0]!
+      const name = basename(prog)
       const args = words.slice(1)
       const own: Redirection[] = n.redirects.map(redirection)
       const stdout = [own, ...outer].map(stdoutOf).find((s) => s) ?? ''
-      const cmd: SimpleCommand = { name, args, wrappers, wrapped, captured, redirects: [...own, ...outer.flat()], stdout }
+      const cmd: SimpleCommand = { name, prog, args, wrappers, wrapped, captured, redirects: [...own, ...outer.flat()], stdout }
       out.commands.push(cmd)
       byNode.set(n, cmd)
 
@@ -225,7 +227,7 @@ export function analyze(source: string, depth = 0): Analysis {
       out.pipelines.push(
         node.commands.map(
           (c: any, i: number): SimpleCommand =>
-            byNode.get(c) ?? { name: '', args: [], wrappers: [], wrapped: [], captured: captured || i < node.commands.length - 1, redirects: [], stdout: '' },
+            byNode.get(c) ?? { name: '', prog: '', args: [], wrappers: [], wrapped: [], captured: captured || i < node.commands.length - 1, redirects: [], stdout: '' },
         ),
       )
   } catch (err) {

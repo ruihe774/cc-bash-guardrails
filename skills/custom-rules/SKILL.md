@@ -104,7 +104,7 @@ A `Cmd` has:
 - `args`: its arguments, with quotes and escapes removed
 - `wrappers`: the wrappers in front of it, outermost first (`["sudo", "env"]`)
 - `captured`: its output feeds a pipe or a substitution (`curl x | sh`: `curl` is captured, `sh` is not)
-- `chain`: one `Link` (`name`, `argv`) per wrapper and a last one for the command itself; `c.chain.exists(l, l.name == 'sudo')` asks "is it run through sudo?"
+- `chain`: one `Link` (`name`, `argv`) per wrapper and a last one for the command itself; `c.chain.exists(l, l.name == 'sudo')` asks "is it run through sudo?". `name` is the basename, but `argv` is as written, so `argv[0]` may be `/usr/bin/sudo`: match on `name`, never `argv[0]`
 - `redirects`: a list of `Redir`, its own and those of the compound commands and shells around it. A `Redir` has `op` (`>`, `>>`, `<`, `<<`, `<<<`, `&>`, `>&`...), `fd` (an `int`, `-1` when none is written), `target` (the file or descriptor, or a heredoc's delimiter), `body` (a heredoc's or here-string's text) and `quoted`.
 - `stdout`: the file its output is redirected to, `&2` for a descriptor, or `''`. `c.stdout.startsWith('/etc/')` catches `echo x > /etc/f`.
 
