@@ -342,7 +342,7 @@ test('a heredoc written to a file is denied in favour of Write', async () => {
     expect(await deny(c)).toBe(null)
 })
 
-test('sed -i without g on one file is denied in favour of Edit', async () => {
+test('sed -i substitutions on one file are denied in favour of Edit', async () => {
   for (const c of [
     "sed -i 's/a/b/' f",
     "sed -i 's|a/x|b|2' f",
@@ -354,13 +354,16 @@ test('sed -i without g on one file is denied in favour of Edit', async () => {
     "sed -i '' 's/a/b/' f",
     "sed -i '10,12d' f",
     "env LC_ALL=C sed -i 's/a/b/' f",
+    // g too: Edit's replace_all changes every occurrence
+    "sed -i 's/a/b/g' f",
+    "sed -i -e 's/a/b/' -e 's/c/d/g' f",
+    "sed -i 's/a/b/2g;3d' f",
   ])
     expect(await deny(c)).toContain('Use the Edit tool to change a file, not sed -i')
   for (const c of [
-    "sed -i 's/a/b/g' f",
     "sed -i 's/a/b/' f g",
     "sed -i 's/a/b/' *.txt x",
-    "sed -i -e 's/a/b/' -e 's/c/d/g' f",
+    "sed -i 's/a/b/g' f g",
     "sed -i '/x/d' f",
     "sed -i '/x/s/a/b/' f",
     "sed -i 'd' f",

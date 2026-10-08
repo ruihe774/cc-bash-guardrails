@@ -92,9 +92,9 @@ export const builtinRules: RuleFile = {
     SED_PRINT: String.raw`^\s*(\d+|\$)(\s*,\s*(\d+|\$|\+\d+))?\s*p\s*(;\s*\d+\s*q\s*)?;?\s*$`,
     // A sed script (without -n) that keeps only a range of lines: X,Y!d or Nq
     SED_KEEP: String.raw`^\s*((\d+|\$)(\s*,\s*(\d+|\$|\+\d+))?\s*!\s*d|\d+\s*q)\s*;?\s*$`,
-    // A sed script of nothing but s commands without the g flag (on every line, or on a line
-    // or range) and deletions of a line or range, separated by ; or newlines
-    SED_EDIT: String.raw`^[\s;]*(?:(?:(?:(?:\d+|\$)(?:[ \t]*,[ \t]*(?:\d+|\$))?[ \t]*)?s([^\\\n\sA-Za-z0-9])(?:\\.|(?!\1)[^\\\n])*\1(?:\\.|(?!\1)[^\\\n])*\1[0-9pIiMm]*|(?:\d+|\$)(?:[ \t]*,[ \t]*(?:\d+|\$))?[ \t]*d)[ \t]*(?:[;\n][\s;]*|$))+$`,
+    // A sed script of nothing but s commands (on every line, or on a line or range; g included,
+    // since Edit's replace_all does the same) and deletions of a line or range, separated by ; or newlines
+    SED_EDIT: String.raw`^[\s;]*(?:(?:(?:(?:\d+|\$)(?:[ \t]*,[ \t]*(?:\d+|\$))?[ \t]*)?s([^\\\n\sA-Za-z0-9])(?:\\.|(?!\1)[^\\\n])*\1(?:\\.|(?!\1)[^\\\n])*\1[0-9gpIiMm]*|(?:\d+|\$)(?:[ \t]*,[ \t]*(?:\d+|\$))?[ \t]*d)[ \t]*(?:[;\n][\s;]*|$))+$`,
     AWKS: ['awk', 'gawk', 'mawk', 'nawk'],
     AWK: { short: 'F:v:f:e:', long: { 'field-separator': 'F:', assign: 'v:', file: 'f:', source: 'e:' }, posix: true },
     // An awk program that prints a line or a range of lines by NR (or FNR), maybe exiting after
@@ -190,11 +190,11 @@ export const builtinRules: RuleFile = {
       deny: 'Use the Write tool to create or overwrite a file (or Edit to add to one), not a heredoc through cat or tee.',
     },
     {
-      // A global (g) substitution, or one over several files, is a batch job and stays allowed
+      // A substitution over several files is a batch job and stays allowed
       id: 'sed-edit',
       tools: ['Bash'],
       when: "cmds.exists(c, c.name == 'sed' && !c.wrappers.exists(w, w in ELEVATE) && cel.bind(o, c.args.opts(SED), 'i' in o && !('n' in o) && !('f' in o) && cel.bind(e, c.args.optValues(SED, 'e'), cel.bind(ops, c.args.operands(SED).filter(x, x != ''), cel.bind(scripts, size(e) > 0 ? e : ops.take(1), size(scripts) > 0 && scripts.all(s, s.matches(SED_EDIT)) && size(size(e) > 0 ? ops : ops.drop(1)) == 1)))))",
-      deny: 'Use the Edit tool to change a file, not sed -i: Edit shows the exact change and fails if the text is not there. sed -i is still fine for a global (g) substitution or one across several files.',
+      deny: 'Use the Edit tool to change a file, not sed -i: Edit shows the exact change and fails if the text is not there.',
     },
     {
       id: 'python-edit',

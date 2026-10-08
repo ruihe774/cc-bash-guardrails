@@ -103,7 +103,7 @@
       "default": false,
       "title": "Use Edit instead of sed -i",
       "type": "boolean",
-      "description": "Deny sed -i on a single file when its script is only substitutions without g (and line deletions); point to the Edit tool."
+      "description": "Deny sed -i on a single file when its script is only substitutions (and line deletions); point to the Edit tool."
     },
     "sudo": {
       "default": false,
