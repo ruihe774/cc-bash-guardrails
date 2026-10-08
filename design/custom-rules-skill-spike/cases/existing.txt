@@ -1,0 +1,1 @@
+the curl rule is getting annoying, turn it off for now. and while you're at it also block git reset --hard

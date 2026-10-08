@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "id": "no-curl",
+      "when": "cmds.exists(c, c.name == 'curl')",
+      "deny": "Use WebFetch instead of curl."
+    }
+  ]
+}

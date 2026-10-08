@@ -1,0 +1,1 @@
+don't let claude write anything into /etc

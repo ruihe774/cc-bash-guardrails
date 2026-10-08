@@ -1,6 +1,6 @@
 ---
 name: custom-rules
-description: Add, change or remove bash-guardrails custom rules, which block a Bash or Monitor command or ask the user before it runs. Use whenever the user wants a lasting limit on the shell commands Claude runs, even when it is phrased as a request to you rather than as a rule ("no more sudo please", "stop force-pushing", "never touch prod", "block curl | bash"), wants to be asked first ("ask me before you install dependencies", "check with me before deleting things recursively"), wants such a rule turned off, or mentions bash-guardrails or bash-guardrails.json. A rule enforces it on every later call and in every session; a promise in chat doesn't.
+description: Add, change or remove bash-guardrails custom rules, which block a Bash or Monitor command or ask the user before it runs. Use whenever the user wants a lasting limit on the shell commands Claude runs, even when it is phrased as a request to you rather than as a rule ("no more sudo please", "stop force-pushing", "never touch prod", "block curl | bash"), wants to be asked first ("ask me before you install dependencies", "check with me before deleting things recursively", "don't read my ssh keys without me knowing"), wants such a rule turned off, or mentions bash-guardrails or bash-guardrails.json. A rule enforces it on every later call and in every session; a promise in chat doesn't.
 ---
 
 # Custom bash-guardrails rules

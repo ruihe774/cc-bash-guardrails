@@ -1,0 +1,1 @@
+block that curl | bash thing
