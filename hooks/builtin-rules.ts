@@ -116,7 +116,7 @@ export const builtinRules: RuleFile = {
       id: 'monitor-no-command',
       tools: ['Monitor'],
       when: '!(has(input.command) && type(input.command) == string) && !has(input.ws)',
-      deny: 'Monitor call has no command string that the Bash guard rules can check; refusing it rather than running it unchecked.',
+      deny: 'Monitor call should have either a command or a ws source.',
     },
     {
       // First among the shell rules: if the command can't be parsed, the rules below can't be trusted to see all of it
@@ -140,7 +140,7 @@ export const builtinRules: RuleFile = {
       // pkill has no list-full option, so -a does not help it
       id: 'pgrep-f',
       when: "cmds.exists(c, cel.bind(o, c.args.opts(PGREP), 'f' in o && (c.name == 'pkill' || c.name == 'pgrep' && !('a' in o))))",
-      deny: 'pgrep -f and pkill -f can match helper processes spawned by the harness (e.g. its bash -c wrapper), and pkill would kill them. Use pgrep -af, confirm each match cmdline, then kill by PID.',
+      deny: 'pgrep -f and pkill -f can match helper processes spawned by the harness, and pkill would kill them. Use pgrep -af and confirm each match cmdline by yourself.',
     },
     {
       id: 'pgrep-captured',
@@ -150,7 +150,7 @@ export const builtinRules: RuleFile = {
     {
       id: 'until-grep',
       when: 'untilConds.exists(cond, cond.exists(c, c.name in GREPS))',
-      deny: 'An "until grep ..." (or "while ! grep ...") loop never exits if the process writing the log silently dies. Watch the process instead: tail -f --pid=<PID> <log> | grep -m1 <pattern> (tail stops when the process exits, ending the pipeline either way). Run it with run_in_background.',
+      deny: 'An "until grep ..." (or "while ! grep ...") loop never exits if the process writing the log silently dies. Watch the process instead: tail -f --pid=<PID> <log> | grep -m1 <pattern> (tail stops when the process exits, ending the pipeline either way).',
     },
     {
       id: 'sudo',
