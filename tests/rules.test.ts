@@ -375,7 +375,7 @@ test('Monitor commands go through the Bash rules even when Monitor itself is all
     expect(await firstDenial('Monitor', { command }, on)).not.toBeNull()
   expect(await firstDenial('Monitor', { command: 'tail -f --pid=1 log' }, on)).toBeNull()
   // The command field is missing: refuse rather than check an empty string
-  expect(await firstDenial('Monitor', {}, on)).toContain('no command string')
+  expect(await firstDenial('Monitor', {}, on)).toContain('either a command or a ws source')
   // A ws source runs no shell
   expect(await firstDenial('Monitor', { ws: { url: 'wss://example.com/stream' } }, on)).toBeNull()
   expect(await firstDenial('Monitor', { ws: { url: 'wss://example.com/stream' } }, ALL)).toContain('Monitor is disabled')
@@ -437,8 +437,8 @@ test('a denied call is never asked about', async () => {
 })
 
 test('Monitor without a command has its own toggle', async () => {
-  expect(await firstDenial('Monitor', {}, { monitor_no_command: true })).toContain('no command string')
+  expect(await firstDenial('Monitor', {}, { monitor_no_command: true })).toContain('either a command or a ws source')
   expect(await firstDenial('Monitor', {}, { ...ALL, monitor_no_command: false, monitor_disabled: false })).toBeNull()
-  expect(await firstDenial('Monitor', { command: 42 }, { monitor_no_command: true })).toContain('no command string')
+  expect(await firstDenial('Monitor', { command: 42 }, { monitor_no_command: true })).toContain('either a command or a ws source')
   expect(await firstDenial('Bash', {}, ALL)).toBeNull()
 })

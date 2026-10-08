@@ -33,7 +33,7 @@ test('the default rules apply with no rule files', async ($, on) => {
   expect(JSON.stringify(await $.tool.call({ tool: 'Bash', command: 'echo "x' }))).toContain('Malformed bash')
   // Off by default
   expect((await $.tool.call({ tool: 'Bash', command: 'sudo ls' })).result).toBe('ran')
-  expect(JSON.stringify(await $.tool.call(MONITOR))).toContain('no command string')
+  expect(JSON.stringify(await $.tool.call(MONITOR))).toContain('either a command or a ws source')
   expect((await $.tool.call({ ...MONITOR, command: 'ls' })).result).toBe('ran')
   // Other tools are never touched
   expect((await $.tool.call({ tool: 'Read', file_path: '/' })).result).toBe('ran')
