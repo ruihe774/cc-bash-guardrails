@@ -72,31 +72,46 @@ export interface CompiledFile {
 // ---- What a rule sees of a call ----
 
 // Classes, not plain objects: cel-js checks a registered type's values by constructor
+// (Fields spelled out rather than as parameter properties, so plain type stripping can load this file.)
 export class Link {
-  constructor(
-    readonly name: string,
-    readonly argv: string[],
-  ) {}
+  readonly name: string
+  readonly argv: string[]
+  constructor(name: string, argv: string[]) {
+    this.name = name
+    this.argv = argv
+  }
 }
 export class Redir {
-  constructor(
-    readonly op: string,
-    readonly fd: bigint,
-    readonly target: string,
-    readonly body: string,
-    readonly quoted: boolean,
-  ) {}
+  readonly op: string
+  readonly fd: bigint
+  readonly target: string
+  readonly body: string
+  readonly quoted: boolean
+  constructor(op: string, fd: bigint, target: string, body: string, quoted: boolean) {
+    this.op = op
+    this.fd = fd
+    this.target = target
+    this.body = body
+    this.quoted = quoted
+  }
 }
 export class Cmd {
-  constructor(
-    readonly name: string,
-    readonly args: string[],
-    readonly captured: boolean,
-    readonly wrappers: string[],
-    readonly chain: Link[], // each wrapper's invocation, then the command itself
-    readonly redirects: Redir[],
-    readonly stdout: string,
-  ) {}
+  readonly name: string
+  readonly args: string[]
+  readonly captured: boolean
+  readonly wrappers: string[]
+  readonly chain: Link[] // each wrapper's invocation, then the command itself
+  readonly redirects: Redir[]
+  readonly stdout: string
+  constructor(name: string, args: string[], captured: boolean, wrappers: string[], chain: Link[], redirects: Redir[], stdout: string) {
+    this.name = name
+    this.args = args
+    this.captured = captured
+    this.wrappers = wrappers
+    this.chain = chain
+    this.redirects = redirects
+    this.stdout = stdout
+  }
 }
 
 const toRedir = (r: Redirection) => new Redir(r.op, BigInt(r.fd), r.target, r.body, r.quoted)

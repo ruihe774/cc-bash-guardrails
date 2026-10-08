@@ -92,6 +92,8 @@ Add your own rules in a JSON rule file. Two files are read, and their rules run 
 - **Your rules:** `~/.claude/bash-guardrails.json` (in `$CLAUDE_CONFIG_DIR` if you set it)
 - **The project's rules:** `.claude/bash-guardrails.json` under the project root
 
+The easiest way is to ask Claude, in your own words: "stop Claude from force-pushing", "ask me before installing dependencies", "don't let it touch prod from this repo". The plugin ships a skill, `custom-rules`, that Claude loads for such requests (or run `/bash-guardrails:custom-rules`). It tells Claude how to write the rule, which file to put it in, and how to check it against sample commands before saving it. Claude points you to a built-in rule's toggle instead when one already does what you want.
+
 A rule file looks like this:
 
 ```json
@@ -177,12 +179,13 @@ An error handler on the hook denies the call if the hook throws or times out bef
 - It runs a `tool.call` hook and a `session.start` hook, written in TypeScript (`hooks/*.ts`), inside Claude Code.
 - It makes **no model calls**, **no network requests**, and **no shell commands**. Commands are only parsed, never executed.
 - It reads only its two rule files, `~/.claude/bash-guardrails.json` and `.claude/bash-guardrails.json` under the project root (`$.fs.stat` and `$.fs.read`), and writes no files. To find the first, it reads the environment variables `CLAUDE_CONFIG_DIR`, `HOME` and `USERPROFILE`. It uses no credentials or MCP servers.
+- The `custom-rules` skill includes a checker script, `skills/custom-rules/check.ts`, which Claude runs with `node` (22.18 or later) or `bun` when you ask it for a rule. The checker reads the rule file it is given and parses the sample commands; it executes nothing and writes nothing.
 - It does not collect, store, or transmit any data. The only things it shows are confirmation dialogs (`run0_confirm` and your `ask` rules) and a transcript line for each rule that fails to load.
 - Its dependencies are vendored and have no install step: the [unbash](https://github.com/webpro-nl/unbash) parser (ISC license, in `hooks/vendor/unbash/`) and the [cel-js](https://github.com/marcbachmann/cel-js) CEL interpreter (MIT license, bundled into `hooks/vendor/cel/`).
 
 ## Development
 
-The rule logic is pure and kept free of the mods API: the CEL engine (`compileFile` and `decide`) in `hooks/engine.ts`, the argument parser in `hooks/argv.ts`, and the parser wrapper `analyze` in `hooks/shell.ts`. The built-in rules are data in `hooks/builtin-rules.ts`, compiled in `hooks/rules.ts`. `hooks/register.ts` loads the rule files and calls the engine. The unit tests are in `tests/`: `rules.test.ts` for the built-in rules, `engine.test.ts` for custom rules and the engine, and `register.test.ts` for the hooks.
+The rule logic is pure and kept free of the mods API: the CEL engine (`compileFile` and `decide`) in `hooks/engine.ts`, the argument parser in `hooks/argv.ts`, and the parser wrapper `analyze` in `hooks/shell.ts`. The built-in rules are data in `hooks/builtin-rules.ts`, compiled in `hooks/rules.ts`. `hooks/register.ts` loads the rule files and calls the engine. The `custom-rules` skill (`skills/custom-rules/`) is the guide Claude follows to write rules, and its `check.ts` compiles a rule file with the same engine; the hooks code must stay loadable by plain type stripping (no parameter properties or enums) so `node check.ts` works. The unit tests are in `tests/`: `rules.test.ts` for the built-in rules, `engine.test.ts` for custom rules and the engine, and `register.test.ts` for the hooks.
 
 ```
 claude plugin validate .

@@ -9,6 +9,7 @@ A Claude Mod (new feature, v2.1.287+) that enforces guard rules on tool calls. A
 - `hooks/register.ts`: exports `register(on, options)`; loads the custom rule files and calls the engine
 - `hooks/builtin-rules.ts`: the built-in rules, as rule-file data; compiled and toggled in `hooks/rules.ts`
 - `hooks/engine.ts`: the CEL engine (compile, type-check, decide); `hooks/argv.ts`: the spec-driven argument parser; `hooks/shell.ts`: shell parsing
+- `skills/custom-rules/`: the skill Claude follows to write custom rules for a user; `check.ts` runs the engine under `node`/`bun`, so keep `hooks/*.ts` loadable by plain type stripping (no parameter properties, enums or namespaces)
 - `hooks/vendor/`: vendored code, don't edit (`cel/cel.js` is a bun bundle; see THIRD_PARTY_NOTICES.md to rebuild it)
 - `design/`: design notes and prototypes, not loaded by the plugin
 - `tests/*.test.ts`: run with `claude plugin test`
