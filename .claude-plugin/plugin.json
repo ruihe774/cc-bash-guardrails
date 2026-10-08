@@ -41,7 +41,7 @@
     },
     "find_xdev": {
       "default": false,
-      "description": "Deny find commands that do not stay on one filesystem (-xdev / -mount).",
+      "description": "Deny find commands that do not stay on one filesystem (-xdev / -mount, BSD -x).",
       "title": "Require find -xdev",
       "type": "boolean"
     },

@@ -45,8 +45,18 @@ test('find without -xdev is denied', async () => {
     'find -L /tmp -xdev -type f',
     'echo $(find /tmp -xdev)',
     'find . -xdev -exec ls {} +',
+    // BSD/macOS spelling, alone or among the leading flags
+    'find -x . -name x',
+    'find -Lx /tmp -type f',
+    'find -E -x . -regex x',
+    // Informational: nothing is searched
+    'find --version',
+    'find --help',
+    'find -version',
   ])
     expect(await deny(c)).toBe(null)
+  // Neither -x inside a longer primary nor --help as a value counts
+  for (const c of ['find -xtype l', 'find . -name --help', 'find . -name -x']) expect(await deny(c)).toContain('-xdev')
 })
 
 test('until grep loops are denied', async () => {
@@ -264,8 +274,42 @@ test('head, sed and awk picking lines of a file are denied in favour of Read', a
     "awk -f prog.awk f",
     "x=$(sed -n 5p f)",
     'ls | head -n 5',
+    // NUL-separated records, not lines
+    'sed -z -n 2p f',
+    "sed --null-data '3q' f",
+    "cat f | sed -z -n '1,2p'",
   ])
     expect(await deny(c)).toBe(null)
+})
+
+test('the file-tool rules leave commands run through sudo, run0 or doas alone', async () => {
+  // The sudo rule would deny these first; the point here is the file-tool rules
+  const denyAsUser = (command: string) => firstDenial('Bash', { command }, { ...ALL, sudo: false })
+  for (const c of [
+    'sudo cat /root/x',
+    'run0 cat -n /root/x',
+    'doas cat /root/x | head -n 5',
+    'sudo head -n 5 /var/log/x',
+    "run0 sed -n '1,5p' /root/x",
+    "sudo awk 'NR==1' /root/x",
+    "cat <<'EOF' | sudo tee /etc/x\nhi\nEOF",
+    "run0 tee -a /etc/x <<'EOF'\nhi\nEOF",
+    "sudo sh -c 'cat > /etc/x <<EOF\nhi\nEOF'",
+    "run0 sed -i 's/^#Port 22/Port 2/' /etc/ssh/sshd_config",
+    "env X=1 sudo -u root sed -i 's/a/b/' /etc/x",
+    `run0 python3 -c "import re;open('f','w').write(re.sub('''a''','b',open('f').read()))"`,
+  ])
+    expect(await denyAsUser(c)).toBe(null)
+  // The elevation must be on the command that touches the file
+  for (const [c, rule] of [
+    ['sudo true; cat f', 'Use the Read tool to view a file'],
+    ['sudo cat f | head -n 5; head -n 5 f', 'Use the Read tool with offset and limit'],
+    ["sudo cat <<'EOF' | tee f\nhi\nEOF", 'Use the Write tool'],
+    ["bash -c 'sed -i s/a/b/ f'", 'Use the Edit tool'],
+  ])
+    expect(await denyAsUser(c!)).toContain(rule!)
+  // The sudo rule still sees sudo inside a shell it runs
+  expect(await deny("sudo sh -c 'cat > /etc/x <<EOF\nhi\nEOF'")).toContain('sudo is disabled')
 })
 
 test('a heredoc written to a file is denied in favour of Write', async () => {

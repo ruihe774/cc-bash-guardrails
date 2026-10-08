@@ -6,7 +6,7 @@ import { parse } from './vendor/unbash/parser.js'
 export interface SimpleCommand {
   name: string // basename of the program, wrappers (sudo, env, ...) removed
   args: string[] // its arguments, quotes removed
-  wrappers: string[] // wrappers removed from in front of it, outermost first
+  wrappers: string[] // wrappers removed from in front of it (and of a shell running it), outermost first
   wrapped: string[][] // per wrapper, parallel to `wrappers`: that wrapper's whole invocation, options and wrapped command included
   captured: boolean // its stdout is consumed: left of a pipe, or inside $(...), `...` or <(...)
   redirects: Redirection[] // its own, then those of the compound commands and shells (`bash -c`) around it, innermost first
@@ -159,13 +159,20 @@ export function analyze(source: string, depth = 0): Analysis {
     out.errors.push(String((err as Error)?.message ?? err))
     return out
   }
-  // A nested script's commands inherit the shell's capture and redirects
+  // A nested script's commands inherit the shell's wrappers (`sudo sh -c ...`), capture and redirects
   const nested = (script: string, shell: SimpleCommand) => {
     const sub = analyze(script, depth + 1)
     const lift = new Map<SimpleCommand, SimpleCommand>()
     for (const c of sub.commands) {
       const redirects = [...c.redirects, ...shell.redirects]
-      lift.set(c, { ...c, captured: c.captured || shell.captured, redirects, stdout: c.stdout || shell.stdout })
+      lift.set(c, {
+        ...c,
+        wrappers: [...shell.wrappers, ...c.wrappers],
+        wrapped: [...shell.wrapped, ...c.wrapped],
+        captured: c.captured || shell.captured,
+        redirects,
+        stdout: c.stdout || shell.stdout,
+      })
     }
     const lifted = (c: SimpleCommand) => lift.get(c) ?? c
     out.commands.push(...sub.commands.map(lifted))

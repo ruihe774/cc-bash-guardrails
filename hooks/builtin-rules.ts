@@ -9,18 +9,22 @@ import type { RuleFile } from './engine.ts'
 
 // Its output reaches the tool result: not piped, substituted or redirected
 const toTerminal = (c: string) => `!${c}.captured && ${c}.stdout == ''`
+// It runs as the user, not behind sudo, run0 or doas (directly or through `sudo sh -c`),
+// so the file tools can reach the files it does
+const unelevated = (c: string) => `!${c}.wrappers.exists(w, w in ELEVATE)`
 // Operands that are regular files the file tools can open
 const someFiles = (f: string) => `size(${f}) > 0 && ${f}.all(x, x != '-' && !x.matches(SPECIAL_FILE))`
 const noFiles = (f: string) => `size(${f}) == 0`
 // cat that only shows files (or the one its stdin is redirected from), at most numbering lines
 const catShows = (c: string) =>
-  `${c}.name == 'cat' && ${c}.args.opts(CAT).all(o, o in ['b', 'n', 's', 'u']) && cel.bind(f, ${c}.args.operands(CAT), size(f) > 0 ? ${someFiles('f')} : ${c}.redirects.exists(r, r.op == '<' && r.fd <= 0 && !r.target.matches(SPECIAL_FILE)))`
+  `${c}.name == 'cat' && ${unelevated(c)} && ${c}.args.opts(CAT).all(o, o in ['b', 'n', 's', 'u']) && cel.bind(f, ${c}.args.operands(CAT), size(f) > 0 ? ${someFiles('f')} : ${c}.redirects.exists(r, r.op == '<' && r.fd <= 0 && !r.target.matches(SPECIAL_FILE)))`
 // head or tail picking lines (not bytes, not following)
 const headPicks = (c: string, names: string, files: (f: string) => string) =>
   `${c}.name in ${names} && ${c}.args.opts(HEAD_TAIL).all(o, o in ['n', 'q', 'v'] || o.matches('^[0-9]$')) && cel.bind(f, ${c}.args.operands(HEAD_TAIL), ${files('f')})`
-// sed -n 'X,Yp', sed 'X,Y!d' or sed 'Nq': the script from -e, or else the first operand
+// sed -n 'X,Yp', sed 'X,Y!d' or sed 'Nq': the script from -e, or else the first operand.
+// Not with -z, whose "lines" are NUL-separated records
 const sedPicks = (c: string, files: (f: string) => string) =>
-  `${c}.name == 'sed' && cel.bind(o, ${c}.args.opts(SED), !('i' in o) && !('f' in o) && cel.bind(e, ${c}.args.optValues(SED, 'e'), cel.bind(ops, ${c}.args.operands(SED), cel.bind(scripts, size(e) > 0 ? e : ops.take(1), size(scripts) > 0 && scripts.all(s, s.matches('n' in o ? SED_PRINT : SED_KEEP)) && cel.bind(f, size(e) > 0 ? ops : ops.drop(1), ${files('f')})))))`
+  `${c}.name == 'sed' && cel.bind(o, ${c}.args.opts(SED), !('i' in o) && !('f' in o) && !('z' in o) && cel.bind(e, ${c}.args.optValues(SED, 'e'), cel.bind(ops, ${c}.args.operands(SED), cel.bind(scripts, size(e) > 0 ? e : ops.take(1), size(scripts) > 0 && scripts.all(s, s.matches('n' in o ? SED_PRINT : SED_KEEP)) && cel.bind(f, size(e) > 0 ? ops : ops.drop(1), ${files('f')})))))`
 // awk 'NR>=X && NR<=Y': the program is the first operand; var=value operands are not files
 const awkPicks = (c: string, files: (f: string) => string) =>
   `${c}.name in AWKS && cel.bind(o, ${c}.args.opts(AWK), !('f' in o) && !('e' in o) && cel.bind(ops, ${c}.args.operands(AWK), size(ops) > 0 && ops[0].matches(AWK_LINES) && cel.bind(f, ops.drop(1).filter(x, !x.matches('^[A-Za-z_][A-Za-z0-9_]*=')), ${files('f')})))`
@@ -28,11 +32,11 @@ const awkPicks = (c: string, files: (f: string) => string) =>
 const literalStdin = (c: string) =>
   `${c}.redirects.exists(r, r.op in ['<<', '<<-', '<<<'] && r.fd <= 0 && (r.quoted || !r.body.matches(EXPANSION)))`
 const catFromLiteral = (c: string) => `${c}.name == 'cat' && ${c}.args.operands(CAT).all(x, x == '-') && ${literalStdin(c)}`
-const teeFiles = (c: string) => `${c}.name == 'tee' && cel.bind(f, ${c}.args.operands(TEE), size(f) > 0 && f.all(x, !x.matches(SPECIAL_FILE)))`
+const teeFiles = (c: string) => `${c}.name == 'tee' && ${unelevated(c)} && cel.bind(f, ${c}.args.operands(TEE), size(f) > 0 && f.all(x, !x.matches(SPECIAL_FILE)))`
 // A Python script, from -c or from a heredoc on stdin, that matches every regex in PY_EDIT
 const pyEdits = (s: string) => `PY_EDIT.all(re, ${s}.matches(re))`
 const pythonEdits = (c: string) =>
-  `${c}.name.matches(PYTHON_NAME) && cel.bind(o, ${c}.args.opts(PYTHON), ${c}.args.optValues(PYTHON, 'c').exists(s, ${pyEdits('s')}) || !('c' in o) && !('m' in o) && cel.bind(ops, ${c}.args.operands(PYTHON), size(ops) == 0 || ops[0] == '-') && ${c}.redirects.exists(r, r.op in ['<<', '<<-', '<<<'] && r.fd <= 0 && ${pyEdits('r.body')}))`
+  `${c}.name.matches(PYTHON_NAME) && ${unelevated(c)} && cel.bind(o, ${c}.args.opts(PYTHON), ${c}.args.optValues(PYTHON, 'c').exists(s, ${pyEdits('s')}) || !('c' in o) && !('m' in o) && cel.bind(ops, ${c}.args.operands(PYTHON), size(ops) == 0 || ops[0] == '-') && ${c}.redirects.exists(r, r.op in ['<<', '<<-', '<<<'] && r.fd <= 0 && ${pyEdits('r.body')}))`
 
 export const builtinRules: RuleFile = {
   defs: {
@@ -51,11 +55,17 @@ export const builtinRules: RuleFile = {
       },
       wordPatterns: { '^-newer[aBcmt][aBcmt]$': 1 },
     },
+    // BSD/macOS find's leading flags (-E -H -L -P -X -d -s -x) with -x, its spelling of -xdev
+    FIND_BSD_XDEV: '^-[EHLPXdsx]*x[EHLPXdsx]*$',
+    // GNU find's informational primaries: find prints and exits, searching nothing
+    FIND_INFO: ['-help', '--help', '-version', '--version'],
     // pgrep/pkill options that take a value, so in `-uf` the f is a user name, not -f
     PGREP: { short: 'dFgGJOPrstTuU', shortTakesValue: true, long: { full: 'f', 'list-full': 'a' } },
     GREPS: ['grep', 'egrep', 'fgrep', 'rg'],
     // Files the Read, Write and Edit tools are not for
     SPECIAL_FILE: '^/(dev|proc|sys)/',
+    // Wrappers that run a command as another user, whose files the file tools may not reach
+    ELEVATE: ['sudo', 'run0', 'doas'],
     // Text the shell would expand in an unquoted heredoc
     EXPANSION: '[$`]',
     // cat's options; with nothing but -b -n -s -u it only shows the file
@@ -131,9 +141,9 @@ export const builtinRules: RuleFile = {
       deny: 'find rooted at / is disabled. Scan a specific directory instead.',
     },
     {
-      // -mount is the traditional spelling of -xdev
+      // -mount is the traditional spelling of -xdev, -x the BSD one; --help and --version search nothing
       id: 'find-xdev',
-      when: "cmds.exists(c, c.name == 'find' && !c.args.opts(FIND_EXPR).exists(o, o in ['-xdev', '-mount']))",
+      when: "cmds.exists(c, c.name == 'find' && !c.args.opts(FIND_EXPR).exists(o, o in ['-xdev', '-mount'] || o.matches(FIND_BSD_XDEV) || o in FIND_INFO))",
       deny: 'find must specify -xdev so it does not cross filesystem boundaries. To search several filesystems, issue a separate find -xdev per filesystem.',
     },
     {
@@ -168,7 +178,7 @@ export const builtinRules: RuleFile = {
       // A standalone tail is left alone: Read can't count lines back from the end
       id: 'line-range-read',
       tools: ['Bash'],
-      when: `cmds.exists(c, ${toTerminal('c')} && (${headPicks('c', "['head']", someFiles)} || ${sedPicks('c', someFiles)} || ${awkPicks('c', someFiles)}))`,
+      when: `cmds.exists(c, ${toTerminal('c')} && ${unelevated('c')} && (${headPicks('c', "['head']", someFiles)} || ${sedPicks('c', someFiles)} || ${awkPicks('c', someFiles)}))`,
       deny: "Use the Read tool with offset and limit to view lines of a file, not head, sed -n 'X,Yp' or awk 'NR>=X && NR<=Y'.",
     },
     {
@@ -176,14 +186,14 @@ export const builtinRules: RuleFile = {
       // ($var, $(cmd)) has content only the shell knows, so it is left alone.
       id: 'heredoc-write',
       tools: ['Bash'],
-      when: `cmds.exists(c, ${catFromLiteral('c')} && c.stdout != '' && !c.stdout.startsWith('&') && !c.stdout.matches(SPECIAL_FILE) || ${teeFiles('c')} && ${literalStdin('c')}) || pipelines.exists(p, size(p) == 2 && ${catFromLiteral('p[0]')} && ${teeFiles('p[1]')})`,
+      when: `cmds.exists(c, ${catFromLiteral('c')} && ${unelevated('c')} && c.stdout != '' && !c.stdout.startsWith('&') && !c.stdout.matches(SPECIAL_FILE) || ${teeFiles('c')} && ${literalStdin('c')}) || pipelines.exists(p, size(p) == 2 && ${catFromLiteral('p[0]')} && ${teeFiles('p[1]')})`,
       deny: 'Use the Write tool to create or overwrite a file (or Edit to add to one), not a heredoc through cat or tee.',
     },
     {
       // A global (g) substitution, or one over several files, is a batch job and stays allowed
       id: 'sed-edit',
       tools: ['Bash'],
-      when: "cmds.exists(c, c.name == 'sed' && cel.bind(o, c.args.opts(SED), 'i' in o && !('n' in o) && !('f' in o) && cel.bind(e, c.args.optValues(SED, 'e'), cel.bind(ops, c.args.operands(SED).filter(x, x != ''), cel.bind(scripts, size(e) > 0 ? e : ops.take(1), size(scripts) > 0 && scripts.all(s, s.matches(SED_EDIT)) && size(size(e) > 0 ? ops : ops.drop(1)) == 1)))))",
+      when: "cmds.exists(c, c.name == 'sed' && !c.wrappers.exists(w, w in ELEVATE) && cel.bind(o, c.args.opts(SED), 'i' in o && !('n' in o) && !('f' in o) && cel.bind(e, c.args.optValues(SED, 'e'), cel.bind(ops, c.args.operands(SED).filter(x, x != ''), cel.bind(scripts, size(e) > 0 ? e : ops.take(1), size(scripts) > 0 && scripts.all(s, s.matches(SED_EDIT)) && size(size(e) > 0 ? ops : ops.drop(1)) == 1)))))",
       deny: 'Use the Edit tool to change a file, not sed -i: Edit shows the exact change and fails if the text is not there. sed -i is still fine for a global (g) substitution or one across several files.',
     },
     {
