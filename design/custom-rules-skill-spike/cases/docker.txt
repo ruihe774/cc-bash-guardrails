@@ -1,1 +1,0 @@
-never let claude start docker containers that mount my home directory
