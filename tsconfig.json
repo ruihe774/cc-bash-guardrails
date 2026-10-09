@@ -1,5 +1,5 @@
 {
-  "extends": "./.claude-plugin/types/tsconfig.json",
+  "extends": "./plugin/.claude-plugin/types/tsconfig.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true
   }
