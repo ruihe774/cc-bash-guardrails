@@ -62,7 +62,7 @@ claude plugin update bash-guardrails@anthropic-plugin-directory
 To try a local checkout while developing, load it directly instead:
 
 ```
-claude --plugin-dir /path/to/cc-bash-guardrails/plugin
+claude --plugin-dir /path/to/cc-bash-guardrails
 ```
 
 ## Configuration
@@ -145,7 +145,7 @@ An `ask` has a `question` (a template), and optionally a `header` (12 characters
 | `errors` | `list<string>` | Parse errors. When it isn't empty, `cmds` may be incomplete. |
 | `untilConds` | `list<list<Cmd>>` | For each `until` or `while !` loop, the commands of its condition |
 | `pipelines` | `list<list<Cmd>>` | For each pipeline (`a \| b \| c`), its stages in order. A stage that is not a simple command, such as `{ ...; }`, has `name` `''`. |
-| your `defs` | | Constants from the file's `defs`, and the built-in ones (`FIND_LEAD`, `FIND_EXPR`, `PGREP`, `GREPS`, `CAT`, `HEAD_TAIL`, `SED`, `AWK`, `TEE`, `PYTHON` and the others in [`plugin/hooks/builtin-rules.ts`](plugin/hooks/builtin-rules.ts)) |
+| your `defs` | | Constants from the file's `defs`, and the built-in ones (`FIND_LEAD`, `FIND_EXPR`, `PGREP`, `GREPS`, `CAT`, `HEAD_TAIL`, `SED`, `AWK`, `TEE`, `PYTHON` and the others in [`hooks/builtin-rules.ts`](hooks/builtin-rules.ts)) |
 
 A `Cmd` has `name` (the program's basename), `args` (its arguments, with quotes removed), `captured` (its output goes into a pipe or a substitution), `wrappers` (the wrappers in front of it, outermost first, including those in front of a shell running it, as in `sudo sh -c "..."`) and `chain`, a list of `Link`s, one for each wrapper's invocation and a last one for the command itself. A `Link` has `name` (the program's basename) and `argv` (its invocation as written, the program's path included: `/usr/bin/sudo ls` has `argv` `["/usr/bin/sudo", "ls"]`). Match programs on `name` and read `argv` for the rest. So `env X=1 sudo -u root ls -l` has `name` `ls`, `args` `["-l"]`, and a `chain` of `env`, `sudo` and `ls` whose `argv`s are `["env", "X=1", "sudo", "-u", "root", "ls", "-l"]`, `["sudo", "-u", "root", "ls", "-l"]` and `["ls", "-l"]`.
 
@@ -162,7 +162,7 @@ On top of [standard CEL](https://github.com/google/cel-spec/blob/master/doc/lang
 | `shquote(argv)` | A `list<string>` as a shell-quoted command line |
 | `list.flatten()`, `list.distinct()` | Flatten a list of lists; drop repeated items |
 
-The built-in rules in [`plugin/hooks/builtin-rules.ts`](plugin/hooks/builtin-rules.ts) are written the same way, so they are worked examples.
+The built-in rules in [`hooks/builtin-rules.ts`](hooks/builtin-rules.ts) are written the same way, so they are worked examples.
 
 ### When rules load, and when they fail
 
@@ -176,16 +176,16 @@ An error handler on the hook denies the call if the hook throws or times out bef
 
 ## What it runs, sends, and fetches
 
-- It runs a `tool.call` hook and a `session.start` hook, written in TypeScript (`plugin/hooks/*.ts`), inside Claude Code.
+- It runs a `tool.call` hook and a `session.start` hook, written in TypeScript (`hooks/*.ts`), inside Claude Code.
 - It makes **no model calls**, **no network requests**, and **no shell commands**. Commands are only parsed, never executed.
 - It reads only its two rule files, `~/.claude/bash-guardrails.json` and `.claude/bash-guardrails.json` under the project root (`$.fs.stat` and `$.fs.read`), and writes no files. To find the first, it reads the environment variables `CLAUDE_CONFIG_DIR`, `HOME` and `USERPROFILE`. It uses no credentials or MCP servers.
-- The `custom-rules` skill includes a checker script, `plugin/skills/custom-rules/check.ts`, which Claude runs with `node` (22.18 or later) or `bun` when you ask it for a rule. The checker reads the rule file it is given and parses the sample commands; it executes nothing and writes nothing.
+- The `custom-rules` skill includes a checker script, `skills/custom-rules/check.ts`, which Claude runs with `node` (22.18 or later) or `bun` when you ask it for a rule. The checker reads the rule file it is given and parses the sample commands; it executes nothing and writes nothing.
 - It does not collect, store, or transmit any data. The only things it shows are confirmation dialogs (`run0_confirm` and your `ask` rules) and a transcript line for each rule that fails to load.
-- Its dependencies are vendored and have no install step: the [unbash](https://github.com/webpro-nl/unbash) parser (ISC license, in `plugin/hooks/vendor/unbash/`) and the [cel-js](https://github.com/marcbachmann/cel-js) CEL interpreter (MIT license, bundled into `plugin/hooks/vendor/cel/`).
+- Its dependencies are vendored and have no install step: the [unbash](https://github.com/webpro-nl/unbash) parser (ISC license, in `hooks/vendor/unbash/`) and the [cel-js](https://github.com/marcbachmann/cel-js) CEL interpreter (MIT license, bundled into `hooks/vendor/cel/`).
 
 ## Development
 
-The rule logic is pure and kept free of the mods API: the CEL engine (`compileFile` and `decide`) in `plugin/hooks/engine.ts`, the argument parser in `plugin/hooks/argv.ts`, and the parser wrapper `analyze` in `plugin/hooks/shell.ts`. The built-in rules are data in `plugin/hooks/builtin-rules.ts`, compiled in `plugin/hooks/rules.ts`. `plugin/hooks/register.ts` loads the rule files and calls the engine. The `custom-rules` skill (`plugin/skills/custom-rules/`) is the guide Claude follows to write rules, and its `check.ts` compiles a rule file with the same engine; the hooks code must stay loadable by plain type stripping (no parameter properties or enums) so `node check.ts` works. The unit tests are in `plugin/tests/`: `rules.test.ts` for the built-in rules, `engine.test.ts` for custom rules and the engine, and `register.test.ts` for the hooks.
+The rule logic is pure and kept free of the mods API: the CEL engine (`compileFile` and `decide`) in `hooks/engine.ts`, the argument parser in `hooks/argv.ts`, and the parser wrapper `analyze` in `hooks/shell.ts`. The built-in rules are data in `hooks/builtin-rules.ts`, compiled in `hooks/rules.ts`. `hooks/register.ts` loads the rule files and calls the engine. The `custom-rules` skill (`skills/custom-rules/`) is the guide Claude follows to write rules, and its `check.ts` compiles a rule file with the same engine; the hooks code must stay loadable by plain type stripping (no parameter properties or enums) so `node check.ts` works. The unit tests are in `tests/`: `rules.test.ts` for the built-in rules, `engine.test.ts` for custom rules and the engine, and `register.test.ts` for the hooks.
 
 ```
 claude plugin validate .
@@ -194,4 +194,4 @@ claude plugin test
 
 ## License
 
-The plugin's own code is released into the public domain under the [Unlicense](LICENSE). The vendored code is **not** public domain: the unbash parser in `plugin/hooks/vendor/unbash/` is Copyright (c) Lars Kappert and licensed under the ISC License, and the cel-js interpreter in `plugin/hooks/vendor/cel/` is Copyright (c) 2025 Marc Bachmann and licensed under the MIT License, so the combined work is `Unlicense AND ISC AND MIT`. Their copyright and permission notices must be preserved in all copies; see [THIRD_PARTY_NOTICES.md](plugin/THIRD_PARTY_NOTICES.md), `plugin/hooks/vendor/unbash/LICENSE` and `plugin/hooks/vendor/cel/LICENSE`.
+The plugin's own code is released into the public domain under the [Unlicense](LICENSE). The vendored code is **not** public domain: the unbash parser in `hooks/vendor/unbash/` is Copyright (c) Lars Kappert and licensed under the ISC License, and the cel-js interpreter in `hooks/vendor/cel/` is Copyright (c) 2025 Marc Bachmann and licensed under the MIT License, so the combined work is `Unlicense AND ISC AND MIT`. Their copyright and permission notices must be preserved in all copies; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), `hooks/vendor/unbash/LICENSE` and `hooks/vendor/cel/LICENSE`.
