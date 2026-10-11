@@ -200,7 +200,7 @@ export const builtinRules: RuleFile = {
       id: 'python-edit',
       tools: ['Bash'],
       when: `cmds.exists(c, ${pythonEdits('c')})`,
-      deny: 'Use the Edit tool (with replace_all to change every occurrence) to change a file, not a Python script that rewrites it with re or .replace() and a multiline string.',
+      deny: 'Use the Edit tool (with replace_all to change every occurrence) to change a file, not a Python script that rewrites it with re or .replace() and a multiline string. If you do need bulk processing with a Python script, use Write to create the script and a separate Bash call to invoke it.',
     },
     {
       // run0's graphical prompt does not show the wrapped command, so show it here first.
