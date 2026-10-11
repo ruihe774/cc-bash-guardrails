@@ -47,6 +47,10 @@ async function customRules($: any): Promise<CompiledRule[]> {
   return projectPath === userPath ? user : [...user, ...(await loadFile($, projectPath))]
 }
 
+// Tells the agent a denied call left no side effects, so it doesn't suspect a half-run command
+const NOT_RUN = 'No commands in this tool call have been run.'
+const denyReason = (reason: string) => `${reason} ${NOT_RUN}`
+
 export function register(on: any, options?: Record<string, unknown>) {
   // Report problems in the rule files when the session starts, not at the first Bash call
   on('session.start', async ($: any, e: any, next: any) => {
@@ -68,10 +72,10 @@ export function register(on: any, options?: Record<string, unknown>) {
         try { $.ui.toast(`Rule '${rule.id}' denied a command`) } catch {}
       },
     )
-    return reason ? { deny: reason } : next(e)
+    return reason ? { deny: denyReason(reason) } : next(e)
   }).catch(async ($: any, e: any, next: any) => {
     // Without this a failed hook is skipped and the call runs unguarded
     if (next.called) return next(e)
-    return { deny: `bash-guardrails failed (${next.error.message}); refusing the call rather than running it unchecked.` }
+    return { deny: denyReason(`bash-guardrails failed (${next.error.message}); refusing the call rather than running it unchecked.`) }
   })
 }
